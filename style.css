@@ -1,1 +1,35 @@
 
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: #080b14;
+  color: #ffffff;
+  font-family: Arial, sans-serif;
+  min-height: 100vh;
+}
+
+#app {
+  max-width: 600px;
+  margin: auto;
+  padding: 25px 18px;
+}
+
+h1 {
+  text-align: center;
+  margin-top: 35px;
+  font-size: 36px;
+  letter-spacing: 8px;
+  color: #36cfff;
+  text-shadow: 0 0 18px #168bff;
+}
+
+p {
+  text-align: center;
+  color: #8295b5;
+  margin-top: 12px;
+  letter-spacing: 2px;
+}
