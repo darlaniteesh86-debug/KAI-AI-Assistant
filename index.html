@@ -5,18 +5,43 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#080b14">
-  <meta name="description" content="JARVIS Personal AI Assistant">
-
   <title>JARVIS AI</title>
-
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
   <div id="app">
-    <h1>JARVIS</h1>
-    <p>Personal AI Assistant</p>
+    <header>
+      <h1>JARVIS</h1>
+      <p>PERSONAL AI SYSTEM</p>
+      <div class="status">
+        <span class="dot"></span>
+        SYSTEM ONLINE
+      </div>
+    </header>
+
+    <section class="assistant">
+      <div class="core">
+        <div class="core-inner">J</div>
+      </div>
+      <h2>How can I help you?</h2>
+      <p>Your personal AI assistant</p>
+    </section>
+
+    <section class="chat">
+      <div id="messages">
+        <div class="message">
+          Hello! I am JARVIS. Ready to assist you.
+        </div>
+      </div>
+
+      <div class="input-area">
+        <input id="userInput" type="text"
+          placeholder="Ask JARVIS anything...">
+        <button id="sendBtn">➤</button>
+      </div>
+    </section>
   </div>
 
   <script src="script.js"></script>
