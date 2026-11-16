@@ -3,6 +3,9 @@ const input = document.getElementById("userInput");
 const sendBtn = document.getElementById("sendBtn");
 const messages = document.getElementById("messages");
 
+const API_URL =
+  "https://jarvis-ai-backend.darlaniteesh86.workers.dev";
+
 function addMessage(text, sender) {
   const message = document.createElement("div");
   message.className = "message";
@@ -12,45 +15,45 @@ function addMessage(text, sender) {
   messages.scrollTop = messages.scrollHeight;
 }
 
-function getResponse(text) {
-  const command = text.toLowerCase().trim();
-
-  if (command.includes("hello") || command.includes("hi")) {
-    return "Hello! How can I help you?";
-  }
-
-  if (command.includes("your name")) {
-    return "I am JARVIS, your personal AI assistant.";
-  }
-
-  if (command.includes("time")) {
-    return "The current time is " +
-      new Date().toLocaleTimeString();
-  }
-
-  if (command.includes("date")) {
-    return "Today's date is " +
-      new Date().toLocaleDateString();
-  }
-
-  if (command.includes("who created you")) {
-    return "You are building me!";
-  }
-
-  return "I am ready to help. My AI brain will be connected soon.";
-}
-
-function sendMessage() {
+async function sendMessage() {
   const text = input.value.trim();
 
-  if (!text) return;
+  if (!text || sendBtn.disabled) return;
 
   addMessage(text, "YOU");
   input.value = "";
+  sendBtn.disabled = true;
 
-  setTimeout(() => {
-    addMessage(getResponse(text), "JARVIS");
-  }, 400);
+  addMessage("Thinking...", "JARVIS");
+
+  const thinkingMessage = messages.lastElementChild;
+
+  try {
+    const response = await fetch(API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        message: text
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Request failed");
+    }
+
+    thinkingMessage.textContent = "JARVIS: " + data.reply;
+
+  } catch (error) {
+    thinkingMessage.textContent =
+      "JARVIS: Connection error — " + error.message;
+  }
+
+  sendBtn.disabled = false;
+  messages.scrollTop = messages.scrollHeight;
 }
 
 sendBtn.addEventListener("click", sendMessage);
@@ -60,4 +63,3 @@ input.addEventListener("keydown", (event) => {
     sendMessage();
   }
 });
-
