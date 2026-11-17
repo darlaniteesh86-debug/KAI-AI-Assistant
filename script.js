@@ -34,15 +34,14 @@ try {
 
 function updateVoiceButton() {
   voiceBtn.textContent = voiceOn
-    ? "🔊 Voice ON"
-    : "🔇 Voice OFF";
+    ? "🔊 VOICE ON"
+    : "🔇 VOICE OFF";
 }
 
 updateVoiceButton();
 
 voiceBtn.addEventListener("click", () => {
   voiceOn = !voiceOn;
-
   localStorage.setItem(VOICE_KEY, String(voiceOn));
 
   if (!voiceOn && "speechSynthesis" in window) {
@@ -83,12 +82,35 @@ function saveHistory() {
   }
 }
 
+// Remove formatting symbols before speaking
+function cleanForSpeech(text) {
+  return String(text)
+    .replace(/```[\s\S]*?```/g, " Code block omitted. ")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/https?:\/\/\S+/g, " ")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/(\*\*|__)(.*?)\1/g, "$2")
+    .replace(/(\*|_)(.*?)\1/g, "$2")
+    .replace(/~~(.*?)~~/g, "$1")
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/^\s*\d+[.)]\s+/gm, "")
+    .replace(/^\s*>\s?/gm, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function speak(text) {
   if (!voiceOn || !("speechSynthesis" in window)) return;
 
+  const cleanText = cleanForSpeech(text);
+
+  if (!cleanText) return;
+
   window.speechSynthesis.cancel();
 
-  const utterance = new SpeechSynthesisUtterance(text);
+  const utterance = new SpeechSynthesisUtterance(cleanText);
   utterance.lang = "en-IN";
   utterance.rate = 1;
   utterance.pitch = 1;
@@ -110,18 +132,18 @@ if (SpeechRecognition) {
   recognition.onstart = () => {
     isListening = true;
     micBtn.textContent = "🔴";
-    voiceStatus.textContent = "Listening...";
+    voiceStatus.textContent = "LISTENING...";
   };
 
   recognition.onresult = event => {
     const transcript = event.results[0][0].transcript;
     input.value = transcript;
-    voiceStatus.textContent = "Voice captured. Tap send.";
+    voiceStatus.textContent = "VOICE CAPTURED. TAP SEND.";
   };
 
   recognition.onerror = event => {
     voiceStatus.textContent =
-      "Microphone error: " + event.error;
+      "MICROPHONE ERROR: " + event.error;
   };
 
   recognition.onend = () => {
@@ -131,7 +153,7 @@ if (SpeechRecognition) {
 } else {
   micBtn.disabled = true;
   voiceStatus.textContent =
-    "Voice input is not supported by this browser.";
+    "VOICE INPUT NOT SUPPORTED.";
 }
 
 micBtn.addEventListener("click", () => {
@@ -145,8 +167,7 @@ micBtn.addEventListener("click", () => {
   try {
     recognition.start();
   } catch (error) {
-    voiceStatus.textContent =
-      "Please try the microphone again.";
+    voiceStatus.textContent = "PLEASE TRY AGAIN.";
   }
 });
 
