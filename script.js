@@ -2,6 +2,7 @@
 const input = document.getElementById("userInput");
 const sendBtn = document.getElementById("sendBtn");
 const micBtn = document.getElementById("micBtn");
+const voiceBtn = document.getElementById("voiceBtn");
 const messages = document.getElementById("messages");
 const voiceStatus = document.getElementById("voiceStatus");
 
@@ -9,10 +10,11 @@ const API_URL =
   "https://jarvis-ai-backend.darlaniteesh86.workers.dev";
 
 const STORAGE_KEY = "jarvis_conversation_v1";
+const VOICE_KEY = "jarvis_voice_enabled";
 const MAX_HISTORY = 20;
 
 let history = [];
-let voiceOn = true;
+let voiceOn = localStorage.getItem(VOICE_KEY) !== "false";
 let recognition = null;
 let isListening = false;
 
@@ -29,6 +31,26 @@ try {
 } catch (error) {
   history = [];
 }
+
+function updateVoiceButton() {
+  voiceBtn.textContent = voiceOn
+    ? "🔊 Voice ON"
+    : "🔇 Voice OFF";
+}
+
+updateVoiceButton();
+
+voiceBtn.addEventListener("click", () => {
+  voiceOn = !voiceOn;
+
+  localStorage.setItem(VOICE_KEY, String(voiceOn));
+
+  if (!voiceOn && "speechSynthesis" in window) {
+    window.speechSynthesis.cancel();
+  }
+
+  updateVoiceButton();
+});
 
 function addMessage(text, sender) {
   const message = document.createElement("div");
