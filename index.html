@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,12 +6,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#030912">
   <meta name="description" content="JARVIS Personal AI System">
+
   <title>JARVIS | AI System</title>
+
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
   <div id="app">
+
     <header class="hud-header">
       <div class="brand">
         <div class="brand-symbol">J</div>
@@ -19,6 +24,7 @@
           <p>JUST A RATHER VERY INTELLIGENT SYSTEM</p>
         </div>
       </div>
+
       <div class="system-status">
         <span class="status-light"></span>
         <span>SYSTEM ONLINE</span>
@@ -27,6 +33,7 @@
 
     <main>
       <section class="reactor-section">
+
         <div class="reactor-heading">
           <span>AI CORE INTERFACE</span>
           <span>MK-01</span>
@@ -38,6 +45,7 @@
           <div class="reactor-ring ring-middle"></div>
           <div class="reactor-ring ring-inner"></div>
           <div class="reactor-dashes"></div>
+
           <div class="reactor-center">
             <div class="reactor-eye">J</div>
             <span>JARVIS</span>
@@ -51,13 +59,26 @@
         </div>
 
         <div class="telemetry">
-          <div><span class="telemetry-label">SYSTEM</span><strong>ONLINE</strong></div>
-          <div><span class="telemetry-label">VOICE</span><strong>READY</strong></div>
-          <div><span class="telemetry-label">AI LINK</span><strong>ACTIVE</strong></div>
+          <div>
+            <span class="telemetry-label">SYSTEM</span>
+            <strong>ONLINE</strong>
+          </div>
+
+          <div>
+            <span class="telemetry-label">VOICE</span>
+            <strong>READY</strong>
+          </div>
+
+          <div>
+            <span class="telemetry-label">AI LINK</span>
+            <strong>ACTIVE</strong>
+          </div>
         </div>
+
       </section>
 
       <section class="chat-panel">
+
         <div class="panel-heading">
           <div>
             <span class="panel-indicator"></span>
@@ -73,15 +94,30 @@
         </div>
 
         <div class="input-area">
-          <input id="userInput" type="text" placeholder="Enter your command..." autocomplete="off">
-          <button id="micBtn" type="button" aria-label="Voice input">🎙</button>
-          <button id="sendBtn" type="button" aria-label="Send message">➤</button>
+          <input
+            id="userInput"
+            type="text"
+            placeholder="Enter your command..."
+            autocomplete="off"
+          >
+
+          <button id="micBtn" type="button" aria-label="Voice input">
+            🎙
+          </button>
+
+          <button id="sendBtn" type="button" aria-label="Send message">
+            ➤
+          </button>
         </div>
 
         <div class="bottom-controls">
           <p id="voiceStatus">VOICE SYSTEM READY</p>
-          <button id="voiceBtn" type="button">🔊 VOICE ON</button>
+
+          <button id="voiceBtn" type="button">
+            🔊 VOICE ON
+          </button>
         </div>
+
       </section>
     </main>
 
@@ -89,8 +125,20 @@
       <span>STARK INDUSTRIES TECHNOLOGY</span>
       <span>JARVIS AI · V1.0</span>
     </footer>
+
   </div>
 
   <script src="script.js"></script>
+
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./sw.js")
+          .then(() => console.log("JARVIS service worker registered"))
+          .catch(error => console.error("Service worker error:", error));
+      });
+    }
+  </script>
+
 </body>
 </html>
