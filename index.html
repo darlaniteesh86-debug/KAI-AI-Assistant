@@ -1,11 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#080b14">
-  <meta name="description" content="Your personal JARVIS AI assistant">
+  <meta name="theme-color" content="#050812">
   <title>JARVIS AI</title>
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="style.css">
@@ -14,54 +12,84 @@
 <body>
   <div id="app">
 
-    <header>
-      <h1>JARVIS</h1>
-      <p>PERSONAL AI SYSTEM</p>
-      <div class="status">
-        <span class="dot"></span>
-        SYSTEM ONLINE
-      </div>
-    </header>
-
-    <section class="assistant">
-      <div class="core">
-        <div class="core-inner">J</div>
-      </div>
-      <h2>How can I help you?</h2>
-      <p>Your personal AI assistant</p>
-    </section>
-
-    <section class="chat">
-      <div id="messages">
-        <div class="message">
-          Hello! I am JARVIS. Ready to assist you.
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-icon">J</span>
+        <div>
+          <h1>JARVIS</h1>
+          <p>PERSONAL AI SYSTEM</p>
         </div>
       </div>
 
-      <div class="input-area">
-        <input
-          id="userInput"
-          type="text"
-          placeholder="Ask JARVIS anything..."
-          autocomplete="off"
-        >
-
-        <button id="micBtn" type="button" aria-label="Voice input">🎙</button>
-
-        <button id="sendBtn" type="button" aria-label="Send message">➤</button>
+      <div class="system-status">
+        <span class="dot"></span>
+        ONLINE
       </div>
+    </header>
 
-      <div class="voice-controls">
-        <button id="voiceBtn" type="button">
-          🔊 Voice ON
-        </button>
-      </div>
+    <main>
+      <section class="hero">
+        <div class="core">
+          <div class="core-ring ring-one"></div>
+          <div class="core-ring ring-two"></div>
+          <div class="core-center">J</div>
+        </div>
 
-      <p id="voiceStatus"></p>
-    </section>
+        <p class="eyebrow">ARTIFICIAL INTELLIGENCE</p>
+        <h2>Your system is ready.</h2>
+        <p class="hero-subtitle">How can I assist you today?</p>
+      </section>
+
+      <section class="chat-panel">
+        <div class="chat-heading">
+          <div>
+            <h3>Conversation</h3>
+            <p>Talk with your personal assistant</p>
+          </div>
+          <span class="live-label">LIVE</span>
+        </div>
+
+        <div id="messages">
+          <div class="message">
+            Hello! I am JARVIS. Ready to assist you.
+          </div>
+        </div>
+
+        <div class="input-area">
+          <input
+            id="userInput"
+            type="text"
+            placeholder="Message JARVIS..."
+            autocomplete="off"
+          >
+
+          <button id="micBtn" type="button" aria-label="Voice input">
+            🎙
+          </button>
+
+          <button id="sendBtn" type="button" aria-label="Send message">
+            ➤
+          </button>
+        </div>
+
+        <div class="bottom-controls">
+          <p id="voiceStatus">SYSTEM READY</p>
+
+          <button id="voiceBtn" type="button">
+            🔊 Voice ON
+          </button>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span>JARVIS AI</span>
+      <span>PERSONAL ASSISTANT · v1.0</span>
+    </footer>
 
   </div>
 
   <script src="script.js"></script>
 </body>
 </html>
+
