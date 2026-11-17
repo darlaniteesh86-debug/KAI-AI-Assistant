@@ -16,6 +16,7 @@ let history = [];
 let voiceOn = localStorage.getItem(VOICE_KEY) !== "false";
 let recognition = null;
 let isListening = false;
+let isSpeaking = false;
 let activeController = null;
 let requestNumber = 0;
 
@@ -36,19 +37,23 @@ function updateVoiceButton() {
   voiceBtn.textContent = voiceOn ? "🔊 VOICE ON" : "🔇 VOICE OFF";
 }
 
-function updateSendButton(isGenerating) {
-  sendBtn.textContent = isGenerating ? "■" : "➤";
+function updateSendButton(active) {
+  sendBtn.textContent = active ? "■" : "➤";
   sendBtn.setAttribute(
     "aria-label",
-    isGenerating ? "Stop generating" : "Send message"
+    active ? "Stop JARVIS" : "Send message"
   );
-  sendBtn.style.background = isGenerating ? "#651b2a" : "";
-  sendBtn.style.borderColor = isGenerating ? "#ff526b" : "";
-  sendBtn.style.color = isGenerating ? "#ff7185" : "";
+  sendBtn.style.background = active ? "#651b2a" : "";
+  sendBtn.style.borderColor = active ? "#ff526b" : "";
+  sendBtn.style.color = active ? "#ff7185" : "";
+}
+
+function updateActivityButton() {
+  updateSendButton(Boolean(activeController || isSpeaking));
 }
 
 updateVoiceButton();
-updateSendButton(false);
+updateActivityButton();
 
 voiceBtn.addEventListener("click", () => {
   voiceOn = !voiceOn;
@@ -56,6 +61,8 @@ voiceBtn.addEventListener("click", () => {
 
   if (!voiceOn && "speechSynthesis" in window) {
     window.speechSynthesis.cancel();
+    isSpeaking = false;
+    updateActivityButton();
   }
 
   updateVoiceButton();
@@ -116,6 +123,22 @@ function speak(text) {
   utterance.rate = 1;
   utterance.pitch = 1;
 
+  isSpeaking = true;
+  updateActivityButton();
+  voiceStatus.textContent = "JARVIS IS SPEAKING...";
+
+  utterance.onend = () => {
+    isSpeaking = false;
+    updateActivityButton();
+    voiceStatus.textContent = "VOICE SYSTEM READY.";
+  };
+
+  utterance.onerror = () => {
+    isSpeaking = false;
+    updateActivityButton();
+    voiceStatus.textContent = "VOICE SYSTEM READY.";
+  };
+
   window.speechSynthesis.speak(utterance);
 }
 
@@ -169,17 +192,20 @@ micBtn.addEventListener("click", () => {
 });
 
 function stopGeneration() {
-  if (!activeController) return;
+  if (!activeController && !isSpeaking) return;
 
-  const controller = activeController;
-  activeController = null;
   requestNumber++;
 
-  controller.abort();
+  if (activeController) {
+    activeController.abort();
+    activeController = null;
+  }
 
   if ("speechSynthesis" in window) {
     window.speechSynthesis.cancel();
   }
+
+  isSpeaking = false;
 
   const thinking = document.getElementById("thinkingMessage");
   if (thinking) {
@@ -187,14 +213,13 @@ function stopGeneration() {
     thinking.removeAttribute("id");
   }
 
-  sendBtn.disabled = false;
-  updateSendButton(false);
+  updateActivityButton();
   voiceStatus.textContent = "GENERATION STOPPED.";
   input.focus();
 }
 
 async function sendMessage() {
-  if (activeController) {
+  if (activeController || isSpeaking) {
     stopGeneration();
     return;
   }
@@ -207,8 +232,6 @@ async function sendMessage() {
   addMessage(text, "YOU");
   input.value = "";
 
-  sendBtn.disabled = false;
-
   const thinking = addMessage("Thinking...", "JARVIS");
   thinking.id = "thinkingMessage";
 
@@ -217,7 +240,7 @@ async function sendMessage() {
 
   const thisRequest = ++requestNumber;
 
-  updateSendButton(true);
+  updateActivityButton();
   voiceStatus.textContent = "JARVIS IS THINKING...";
 
   const updatedHistory = [
@@ -261,8 +284,6 @@ async function sendMessage() {
     saveHistory();
     speak(data.reply);
 
-    voiceStatus.textContent = "VOICE SYSTEM READY.";
-
   } catch (error) {
     if (error.name === "AbortError") return;
 
@@ -275,8 +296,7 @@ async function sendMessage() {
   } finally {
     if (thisRequest === requestNumber) {
       activeController = null;
-      updateSendButton(false);
-      sendBtn.disabled = false;
+      updateActivityButton();
       input.focus();
       messages.scrollTop = messages.scrollHeight;
     }
