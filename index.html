@@ -1,10 +1,12 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#050812">
-  <title>JARVIS AI</title>
+  <meta name="theme-color" content="#030912">
+  <meta name="description" content="JARVIS Personal AI System">
+  <title>JARVIS | AI System</title>
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="style.css">
 </head>
@@ -12,41 +14,74 @@
 <body>
   <div id="app">
 
-    <header class="topbar">
+    <header class="hud-header">
       <div class="brand">
-        <span class="brand-icon">J</span>
+        <div class="brand-symbol">J</div>
         <div>
-          <h1>JARVIS</h1>
-          <p>PERSONAL AI SYSTEM</p>
+          <h1>J.A.R.V.I.S</h1>
+          <p>JUST A RATHER VERY INTELLIGENT SYSTEM</p>
         </div>
       </div>
 
       <div class="system-status">
-        <span class="dot"></span>
-        ONLINE
+        <span class="status-light"></span>
+        <span>SYSTEM ONLINE</span>
       </div>
     </header>
 
     <main>
-      <section class="hero">
-        <div class="core">
-          <div class="core-ring ring-one"></div>
-          <div class="core-ring ring-two"></div>
-          <div class="core-center">J</div>
+
+      <section class="reactor-section">
+
+        <div class="reactor-heading">
+          <span>AI CORE INTERFACE</span>
+          <span>MK-01</span>
         </div>
 
-        <p class="eyebrow">ARTIFICIAL INTELLIGENCE</p>
-        <h2>Your system is ready.</h2>
-        <p class="hero-subtitle">How can I assist you today?</p>
+        <div class="reactor">
+          <div class="reactor-glow"></div>
+          <div class="reactor-ring ring-outer"></div>
+          <div class="reactor-ring ring-middle"></div>
+          <div class="reactor-ring ring-inner"></div>
+          <div class="reactor-dashes"></div>
+
+          <div class="reactor-center">
+            <div class="reactor-eye">J</div>
+            <span>JARVIS</span>
+            <small>AI CORE ACTIVE</small>
+          </div>
+        </div>
+
+        <div class="core-status">
+          <span class="status-light"></span>
+          <span>AWAITING YOUR COMMAND</span>
+        </div>
+
+        <div class="telemetry">
+          <div>
+            <span class="telemetry-label">SYSTEM</span>
+            <strong>ONLINE</strong>
+          </div>
+          <div>
+            <span class="telemetry-label">VOICE</span>
+            <strong>READY</strong>
+          </div>
+          <div>
+            <span class="telemetry-label">AI LINK</span>
+            <strong>ACTIVE</strong>
+          </div>
+        </div>
+
       </section>
 
       <section class="chat-panel">
-        <div class="chat-heading">
+
+        <div class="panel-heading">
           <div>
-            <h3>Conversation</h3>
-            <p>Talk with your personal assistant</p>
+            <span class="panel-indicator"></span>
+            <h2>COMMUNICATION CHANNEL</h2>
           </div>
-          <span class="live-label">LIVE</span>
+          <span class="channel-id">CH-01</span>
         </div>
 
         <div id="messages">
@@ -56,35 +91,43 @@
         </div>
 
         <div class="input-area">
+
           <input
             id="userInput"
             type="text"
-            placeholder="Message JARVIS..."
+            placeholder="Enter your command..."
             autocomplete="off"
           >
 
-          <button id="micBtn" type="button" aria-label="Voice input">
-            🎙
-          </button>
+          <button
+            id="micBtn"
+            type="button"
+            aria-label="Voice input"
+          >🎙</button>
 
-          <button id="sendBtn" type="button" aria-label="Send message">
-            ➤
-          </button>
+          <button
+            id="sendBtn"
+            type="button"
+            aria-label="Send message"
+          >➤</button>
+
         </div>
 
         <div class="bottom-controls">
-          <p id="voiceStatus">SYSTEM READY</p>
+          <p id="voiceStatus">VOICE SYSTEM READY</p>
 
           <button id="voiceBtn" type="button">
-            🔊 Voice ON
+            🔊 VOICE ON
           </button>
         </div>
+
       </section>
+
     </main>
 
     <footer>
-      <span>JARVIS AI</span>
-      <span>PERSONAL ASSISTANT · v1.0</span>
+      <span>STARK INDUSTRIES TECHNOLOGY</span>
+      <span>JARVIS AI · V1.0</span>
     </footer>
 
   </div>
@@ -92,4 +135,3 @@
   <script src="script.js"></script>
 </body>
 </html>
-
