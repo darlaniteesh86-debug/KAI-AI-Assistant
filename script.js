@@ -1,7 +1,9 @@
 
 const input = document.getElementById("userInput");
 const sendBtn = document.getElementById("sendBtn");
+const micBtn = document.getElementById("micBtn");
 const messages = document.getElementById("messages");
+const voiceStatus = document.getElementById("voiceStatus");
 
 const API_URL =
   "https://jarvis-ai-backend.darlaniteesh86.workers.dev";
@@ -10,8 +12,10 @@ const STORAGE_KEY = "jarvis_conversation_v1";
 const MAX_HISTORY = 20;
 
 let history = [];
+let voiceOn = true;
+let recognition = null;
+let isListening = false;
 
-// Load saved conversation
 try {
   const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
 
@@ -26,7 +30,6 @@ try {
   history = [];
 }
 
-// Display a message
 function addMessage(text, sender) {
   const message = document.createElement("div");
 
@@ -40,7 +43,6 @@ function addMessage(text, sender) {
   return message;
 }
 
-// Display previous conversation
 history.forEach(item => {
   addMessage(
     item.text,
@@ -48,7 +50,6 @@ history.forEach(item => {
   );
 });
 
-// Save conversation
 function saveHistory() {
   try {
     localStorage.setItem(
@@ -60,11 +61,81 @@ function saveHistory() {
   }
 }
 
-// Send message to Gemini
+function speak(text) {
+  if (!voiceOn || !("speechSynthesis" in window)) return;
+
+  window.speechSynthesis.cancel();
+
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = "en-IN";
+  utterance.rate = 1;
+  utterance.pitch = 1;
+
+  window.speechSynthesis.speak(utterance);
+}
+
+const SpeechRecognition =
+  window.SpeechRecognition ||
+  window.webkitSpeechRecognition;
+
+if (SpeechRecognition) {
+  recognition = new SpeechRecognition();
+
+  recognition.lang = "en-IN";
+  recognition.continuous = false;
+  recognition.interimResults = false;
+
+  recognition.onstart = () => {
+    isListening = true;
+    micBtn.textContent = "🔴";
+    voiceStatus.textContent = "Listening...";
+  };
+
+  recognition.onresult = event => {
+    const transcript = event.results[0][0].transcript;
+    input.value = transcript;
+    voiceStatus.textContent = "Voice captured. Tap send.";
+  };
+
+  recognition.onerror = event => {
+    voiceStatus.textContent =
+      "Microphone error: " + event.error;
+  };
+
+  recognition.onend = () => {
+    isListening = false;
+    micBtn.textContent = "🎙";
+  };
+} else {
+  micBtn.disabled = true;
+  voiceStatus.textContent =
+    "Voice input is not supported by this browser.";
+}
+
+micBtn.addEventListener("click", () => {
+  if (!recognition) return;
+
+  if (isListening) {
+    recognition.stop();
+    return;
+  }
+
+  try {
+    recognition.start();
+  } catch (error) {
+    voiceStatus.textContent =
+      "Please try the microphone again.";
+  }
+});
+
 async function sendMessage() {
   const text = input.value.trim();
 
   if (!text || sendBtn.disabled) return;
+
+  if (isListening && recognition) {
+    recognition.stop();
+  }
 
   addMessage(text, "YOU");
   input.value = "";
@@ -109,10 +180,10 @@ async function sendMessage() {
     ].slice(-MAX_HISTORY);
 
     saveHistory();
+    speak(data.reply);
 
   } catch (error) {
-    thinking.textContent =
-      "JARVIS: " + error.message;
+    thinking.textContent = "JARVIS: " + error.message;
   }
 
   sendBtn.disabled = false;
@@ -120,10 +191,8 @@ async function sendMessage() {
   messages.scrollTop = messages.scrollHeight;
 }
 
-// Button interaction
 sendBtn.addEventListener("click", sendMessage);
 
-// Enter key interaction
 input.addEventListener("keydown", event => {
   if (event.key === "Enter") {
     sendMessage();
