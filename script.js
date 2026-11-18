@@ -9,6 +9,7 @@ const voiceStatus = document.getElementById("voiceStatus");
 const API_URL = "https://jarvis-ai-backend.darlaniteesh86.workers.dev";
 const VOICE_KEY = "jarvis_voice_enabled";
 const MAX_HISTORY = 20;
+const WAKE_WORD = "jarvis";
 
 let history = [];
 let voiceOn = localStorage.getItem(VOICE_KEY) !== "false";
@@ -17,6 +18,10 @@ let isListening = false;
 let isSpeaking = false;
 let activeController = null;
 let requestNumber = 0;
+
+let wakeEnabled = true;
+let wakeArmed = false;
+let restartTimer = null;
 
 let speechQueue = [];
 let speechToken = 0;
@@ -106,7 +111,6 @@ function cleanForSpeech(text) {
     .trim();
 }
 
-// Create smaller speech chunks
 function splitSpeech(text, maxLength = 80) {
   const sentences = text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [text];
   const chunks = [];
@@ -150,7 +154,8 @@ function speakNext(token) {
     currentChunk = "";
     isSpeaking = false;
     updateActivityButton();
-    voiceStatus.textContent = "VOICE SYSTEM READY.";
+    voiceStatus.textContent = "SAY JARVIS TO TALK.";
+    startWakeListening();
     return;
   }
 
@@ -249,59 +254,126 @@ document.addEventListener("visibilitychange", () => {
   }
 
   resumeSpeech();
+  startWakeListening();
 });
 
 window.addEventListener("focus", resumeSpeech);
 window.addEventListener("pageshow", resumeSpeech);
 
-// Voice recognition
+// WAKE WORD VOICE RECOGNITION
+
 const SpeechRecognition =
   window.SpeechRecognition ||
   window.webkitSpeechRecognition;
 
+function startWakeListening() {
+  if (
+    !recognition ||
+    !wakeEnabled ||
+    isListening ||
+    activeController ||
+    isSpeaking ||
+    document.hidden
+  ) {
+    return;
+  }
+
+  if (restartTimer) {
+    clearTimeout(restartTimer);
+    restartTimer = null;
+  }
+
+  try {
+    recognition.start();
+  } catch (error) {
+    // Recognition may already be starting.
+  }
+}
+
+function scheduleWakeRestart() {
+  if (!wakeEnabled || document.hidden) return;
+
+  if (restartTimer) clearTimeout(restartTimer);
+
+  restartTimer = setTimeout(() => {
+    restartTimer = null;
+    startWakeListening();
+  }, 1000);
+}
+
+function processWakeTranscript(transcript) {
+  const spokenText = transcript.trim();
+  if (!spokenText) return;
+
+  const wakePattern = /\bjarvis\b/i;
+
+  if (!wakeArmed) {
+    if (!wakePattern.test(spokenText)) return;
+
+    const command = spokenText
+      .replace(wakePattern, "")
+      .trim();
+
+    wakeArmed = true;
+
+    if (command) {
+      input.value = command;
+      voiceStatus.textContent = "QUESTION DETECTED...";
+      recognition.stop();
+      sendMessage();
+    } else {
+      voiceStatus.textContent = "YES? I'M LISTENING...";
+    }
+
+    return;
+  }
+
+  input.value = spokenText.replace(wakePattern, "").trim();
+
+  if (!input.value) return;
+
+  wakeArmed = false;
+  voiceStatus.textContent = "QUESTION DETECTED...";
+
+  recognition.stop();
+  sendMessage();
+}
+
 if (SpeechRecognition) {
   recognition = new SpeechRecognition();
+
   recognition.lang = "en-IN";
-  recognition.continuous = false;
+  recognition.continuous = true;
   recognition.interimResults = true;
   recognition.maxAlternatives = 3;
 
-  let finalTranscript = "";
-
   recognition.onstart = () => {
     isListening = true;
-    finalTranscript = "";
-    input.value = "";
     micBtn.textContent = "🔴";
-    voiceStatus.textContent = "LISTENING...";
+    voiceStatus.textContent = wakeArmed
+      ? "WAITING FOR YOUR QUESTION..."
+      : "SAY JARVIS TO TALK.";
   };
 
   recognition.onresult = event => {
-    let interimTranscript = "";
-
     for (let i = event.resultIndex; i < event.results.length; i++) {
-      const transcript = event.results[i][0].transcript;
+      const transcript = event.results[i][0].transcript.trim();
 
       if (event.results[i].isFinal) {
-        finalTranscript += transcript + " ";
-      } else {
-        interimTranscript += transcript;
+        processWakeTranscript(transcript);
       }
     }
-
-    input.value = (finalTranscript + interimTranscript).trim();
-
-    voiceStatus.textContent = interimTranscript
-      ? "HEARING YOUR VOICE..."
-      : "VOICE CAPTURED. REVIEW BEFORE SENDING.";
   };
 
   recognition.onerror = event => {
     if (event.error === "not-allowed") {
+      wakeEnabled = false;
       voiceStatus.textContent = "MICROPHONE PERMISSION DENIED.";
-    } else if (event.error === "no-speech") {
-      voiceStatus.textContent = "NO SPEECH DETECTED. TRY AGAIN.";
-    } else {
+    } else if (event.error === "service-not-allowed") {
+      wakeEnabled = false;
+      voiceStatus.textContent = "VOICE SERVICE NOT ALLOWED.";
+    } else if (event.error !== "no-speech" &&
+               event.error !== "aborted") {
       voiceStatus.textContent = "VOICE ERROR: " + event.error;
     }
   };
@@ -310,28 +382,40 @@ if (SpeechRecognition) {
     isListening = false;
     micBtn.textContent = "🎙";
 
-    voiceStatus.textContent = input.value.trim()
-      ? "VOICE CAPTURED. REVIEW BEFORE SENDING."
-      : "VOICE SYSTEM READY.";
+    if (wakeEnabled && !activeController && !isSpeaking) {
+      scheduleWakeRestart();
+    }
   };
 
 } else {
+  wakeEnabled = false;
   micBtn.disabled = true;
   voiceStatus.textContent = "VOICE INPUT NOT SUPPORTED.";
 }
 
+// Microphone button toggles wake-word listening.
+
 micBtn.addEventListener("click", () => {
   if (!recognition) return;
 
-  if (isListening) {
-    recognition.stop();
-    return;
-  }
+  if (wakeEnabled) {
+    wakeEnabled = false;
+    wakeArmed = false;
 
-  try {
-    recognition.start();
-  } catch (error) {
-    voiceStatus.textContent = "PLEASE TRY AGAIN.";
+    if (restartTimer) {
+      clearTimeout(restartTimer);
+      restartTimer = null;
+    }
+
+    if (isListening) recognition.stop();
+
+    voiceStatus.textContent = "WAKE WORD LISTENING OFF.";
+    micBtn.textContent = "🎙";
+  } else {
+    wakeEnabled = true;
+    wakeArmed = false;
+    voiceStatus.textContent = "STARTING WAKE WORD...";
+    startWakeListening();
   }
 });
 
@@ -357,6 +441,7 @@ function stopGeneration() {
   updateActivityButton();
   voiceStatus.textContent = "GENERATION STOPPED.";
   input.focus();
+  startWakeListening();
 }
 
 async function sendMessage() {
@@ -367,6 +452,8 @@ async function sendMessage() {
 
   const text = input.value.trim();
   if (!text) return;
+
+  wakeArmed = false;
 
   if (isListening && recognition) {
     recognition.stop();
@@ -426,7 +513,9 @@ async function sendMessage() {
       { role: "model", text: data.reply }
     ].slice(-MAX_HISTORY);
 
-    speak(data.reply);
+    if (voiceOn) {
+      speak(data.reply);
+    }
 
   } catch (error) {
     if (error.name === "AbortError") return;
@@ -443,6 +532,10 @@ async function sendMessage() {
       updateActivityButton();
       input.focus();
       messages.scrollTop = messages.scrollHeight;
+
+      if (!isSpeaking) {
+        startWakeListening();
+      }
     }
   }
 }
@@ -453,4 +546,10 @@ input.addEventListener("keydown", event => {
   if (event.key === "Enter") {
     sendMessage();
   }
+});
+
+// Start listening when the app opens.
+
+window.addEventListener("load", () => {
+  setTimeout(startWakeListening, 1200);
 });
