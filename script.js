@@ -18,9 +18,6 @@ let isSpeaking = false;
 let activeController = null;
 let requestNumber = 0;
 
-let wakeEnabled = true;
-let wakeArmed = false;
-let restartTimer = null;
 let recognitionStarting = false;
 let manualMicMode = false;
 
@@ -93,7 +90,6 @@ voiceBtn.addEventListener("click", () => {
   if (!voiceOn) {
     cancelSpeech();
     voiceStatus.textContent = "VOICE SYSTEM OFF.";
-    startWakeListening();
   } else {
     voiceStatus.textContent = "VOICE SYSTEM READY.";
   }
@@ -166,92 +162,13 @@ function splitSpeech(text, maxLength = 80) {
   return chunks;
 }
 
-// WAKE WORD LISTENING
+// TAP-TO-TALK MICROPHONE INPUT
 
 const SpeechRecognition =
   window.SpeechRecognition ||
   window.webkitSpeechRecognition;
 
-function scheduleWakeRestart(delay = 1000) {
-  if (!wakeEnabled || document.hidden || !recognition) return;
-
-  if (restartTimer) {
-    clearTimeout(restartTimer);
-  }
-
-  restartTimer = setTimeout(() => {
-    restartTimer = null;
-    startWakeListening();
-  }, delay);
-}
-
-function startWakeListening() {
-  if (
-    !recognition ||
-    !wakeEnabled ||
-    document.hidden ||
-    isListening ||
-    recognitionStarting
-  ) {
-    return;
-  }
-
-  if (activeController || isSpeaking) {
-    scheduleWakeRestart(1200);
-    return;
-  }
-
-  if (restartTimer) {
-    clearTimeout(restartTimer);
-    restartTimer = null;
-  }
-
-  try {
-    recognitionStarting = true;
-    recognition.start();
-  } catch (error) {
-    recognitionStarting = false;
-    scheduleWakeRestart(1500);
-  }
-}
-
-function processWakeTranscript(transcript) {
-  const spokenText = transcript.trim();
-  if (!spokenText) return;
-
-  const wakePattern = /\bjarvis\b/i;
-
-  if (!wakeArmed) {
-    if (!wakePattern.test(spokenText)) return;
-
-    const command = spokenText.replace(wakePattern, "").trim();
-
-    wakeArmed = true;
-
-    if (command) {
-      input.value = command;
-      voiceStatus.textContent = "QUESTION DETECTED...";
-      recognition.stop();
-      sendMessage();
-    } else {
-      voiceStatus.textContent = "YES? I'M LISTENING...";
-    }
-
-    return;
-  }
-
-  input.value = spokenText.replace(wakePattern, "").trim();
-
-  if (!input.value) return;
-
-  wakeArmed = false;
-  voiceStatus.textContent = "QUESTION DETECTED...";
-
-  recognition.stop();
-  sendMessage();
-}
-
-function createWakeRecognition() {
+function createRecognition() {
   if (!SpeechRecognition) return null;
 
   const instance = new SpeechRecognition();
@@ -265,57 +182,41 @@ function createWakeRecognition() {
     recognitionStarting = false;
     isListening = true;
     micBtn.textContent = "🔴";
-    voiceStatus.textContent = manualMicMode
-      ? "LISTENING... SPEAK YOUR QUESTION NOW."
-      : wakeArmed
-        ? "WAITING FOR YOUR QUESTION..."
-        : "SAY JARVIS TO TALK.";
+    voiceStatus.textContent = "LISTENING... SPEAK YOUR QUESTION NOW.";
   };
 
   instance.onresult = event => {
     if (recognition !== instance || !event.results || !event.results.length) return;
-
     const result = event.results[event.resultIndex] || event.results[0];
     if (!result || !result.isFinal) return;
 
     const transcript = result[0].transcript.trim();
-
-    if (manualMicMode) {
-      manualMicMode = false;
-      if (transcript) {
-        input.value = transcript;
-        voiceStatus.textContent = "VOICE CAPTURED. TAP SEND.";
-      } else {
-        voiceStatus.textContent = "NO WORDS DETECTED. TAP MIC TO TRY AGAIN.";
-      }
-      try { instance.stop(); } catch (_) {}
-      return;
+    manualMicMode = false;
+    if (transcript) {
+      input.value = transcript;
+      voiceStatus.textContent = "VOICE CAPTURED. TAP SEND.";
+    } else {
+      voiceStatus.textContent = "NO WORDS DETECTED. TAP MIC TO TRY AGAIN.";
     }
-
-    processWakeTranscript(transcript);
     try { instance.stop(); } catch (_) {}
   };
 
   instance.onerror = event => {
     if (recognition !== instance) return;
     recognitionStarting = false;
+    manualMicMode = false;
 
     if (event.error === "not-allowed") {
-      wakeEnabled = false;
       voiceStatus.textContent = "MICROPHONE PERMISSION DENIED. ALLOW MIC ACCESS.";
     } else if (event.error === "service-not-allowed") {
-      wakeEnabled = false;
       voiceStatus.textContent = "VOICE SERVICE NOT ALLOWED.";
     } else if (event.error === "audio-capture") {
-      manualMicMode = false;
       voiceStatus.textContent = "MICROPHONE NOT AVAILABLE.";
     } else if (event.error === "network") {
-      manualMicMode = false;
       voiceStatus.textContent = "VOICE NETWORK ERROR. CHECK INTERNET AND RETRY.";
-    } else if (event.error === "no-speech" && manualMicMode) {
-      manualMicMode = false;
+    } else if (event.error === "no-speech") {
       voiceStatus.textContent = "NO SPEECH DETECTED. TAP MIC TO TRY AGAIN.";
-    } else if (event.error !== "no-speech" && event.error !== "aborted") {
+    } else if (event.error !== "aborted") {
       voiceStatus.textContent = "VOICE ERROR: " + event.error;
     }
   };
@@ -324,21 +225,11 @@ function createWakeRecognition() {
     if (recognition !== instance) return;
     isListening = false;
     recognitionStarting = false;
+    manualMicMode = false;
     micBtn.textContent = "🎙";
-
-    // Do not let an unfinished tap-to-talk session leak into the next
-    // automatic wake-word session.
-    if (manualMicMode) {
-      manualMicMode = false;
+    recognition = createRecognition();
+    if (voiceStatus.textContent === "LISTENING... SPEAK YOUR QUESTION NOW.") {
       voiceStatus.textContent = "NO WORDS DETECTED. TAP MIC TO TRY AGAIN.";
-    }
-
-    // Android Chrome can leave a stopped SpeechRecognition instance unusable.
-    // Create a fresh instance for the next listening session.
-    recognition = createWakeRecognition();
-
-    if (wakeEnabled && !activeController && !isSpeaking) {
-      scheduleWakeRestart(1200);
     }
   };
 
@@ -346,9 +237,8 @@ function createWakeRecognition() {
 }
 
 if (SpeechRecognition) {
-  recognition = createWakeRecognition();
+  recognition = createRecognition();
 } else {
-  wakeEnabled = false;
   micBtn.disabled = true;
   voiceStatus.textContent = "VOICE INPUT NOT SUPPORTED.";
 }
@@ -362,8 +252,7 @@ function speakNext(token) {
     currentChunk = "";
     isSpeaking = false;
     updateActivityButton();
-    voiceStatus.textContent = "SAY JARVIS TO TALK.";
-    scheduleWakeRestart(500);
+    voiceStatus.textContent = "READY. TAP MIC TO SPEAK.";
     return;
   }
 
@@ -420,13 +309,11 @@ function speak(text) {
   if (!voiceOn || !("speechSynthesis" in window)) {
     isSpeaking = false;
     updateActivityButton();
-    scheduleWakeRestart(500);
     return;
   }
 
   const cleanText = cleanForSpeech(text);
   if (!cleanText) {
-    scheduleWakeRestart(500);
     return;
   }
 
@@ -502,17 +389,14 @@ document.addEventListener("visibilitychange", () => {
   }
 
   resumeSpeech();
-  scheduleWakeRestart(700);
 });
 
 window.addEventListener("focus", () => {
   resumeSpeech();
-  scheduleWakeRestart(700);
 });
 
 window.addEventListener("pageshow", () => {
   resumeSpeech();
-  scheduleWakeRestart(700);
 });
 
 // LOCAL DEVICE INFORMATION
@@ -599,19 +483,12 @@ micBtn.addEventListener("click", () => {
   unlockSpeechOutput();
 
   // Direct tap-to-talk: no wake word is required.
-  wakeEnabled = true;
-  wakeArmed = false;
   manualMicMode = true;
 
   if (activeController) stopGeneration();
   if (isSpeaking) cancelSpeech();
 
   voiceStatus.textContent = "LISTENING... SPEAK YOUR QUESTION NOW.";
-
-  if (restartTimer) {
-    clearTimeout(restartTimer);
-    restartTimer = null;
-  }
 
   // If recognition is already active, keep that live session running.
   // Stopping it and restarting asynchronously can lose Android's user-gesture
@@ -657,7 +534,6 @@ function stopGeneration() {
   updateActivityButton();
   voiceStatus.textContent = "GENERATION STOPPED.";
   input.focus();
-  scheduleWakeRestart(500);
 }
 
 // SEND MESSAGE
@@ -676,7 +552,6 @@ async function sendMessage() {
   // discarded as a Stop command.
   if (activeController || isSpeaking) stopGeneration();
 
-  wakeArmed = false;
 
   if (isListening && recognition) {
     recognition.stop();
@@ -690,8 +565,7 @@ async function sendMessage() {
     addMessage(localInfo, "JARVIS");
     if (voiceOn) speak(localInfo);
     voiceStatus.textContent = "LOCAL DEVICE INFORMATION.";
-    scheduleWakeRestart(700);
-    return;
+      return;
   }
 
   const appCommand = getAppCommand(text);
@@ -774,8 +648,7 @@ async function sendMessage() {
       messages.scrollTop = messages.scrollHeight;
 
       if (!isSpeaking) {
-        scheduleWakeRestart(700);
-      }
+            }
     }
   }
 }
@@ -788,9 +661,5 @@ input.addEventListener("keydown", event => {
   }
 });
 
-// START LISTENING WHEN APP OPENS
-
-window.addEventListener("load", () => {
-  setTimeout(startWakeListening, 1200);
-});
+// Voice input is inactive until the microphone button is tapped.
     
