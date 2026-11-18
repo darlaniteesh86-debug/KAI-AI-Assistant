@@ -490,7 +490,7 @@ function openAndroidApp(appName) {
       "https://wa.me/",
 
     chrome:
-      "intent://www.google.com/#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=https%3A%2F%2Fwww.google.com%2F;end"
+      "intent://navigate?url=https%3A%2F%2Fwww.google.com%2F#Intent;scheme=googlechrome;package=com.android.chrome;end"
   };
 
   if (!appLinks[appName]) return;
