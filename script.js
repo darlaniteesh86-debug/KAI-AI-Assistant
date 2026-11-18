@@ -1,4 +1,3 @@
-
 const input = document.getElementById("userInput");
 const sendBtn = document.getElementById("sendBtn");
 const micBtn = document.getElementById("micBtn");
@@ -7,7 +6,6 @@ const messages = document.getElementById("messages");
 const voiceStatus = document.getElementById("voiceStatus");
 
 const API_URL = "https://jarvis-ai-backend.darlaniteesh86.workers.dev";
-
 const VOICE_KEY = "jarvis_voice_enabled";
 const MAX_HISTORY = 20;
 
@@ -21,6 +19,9 @@ let requestNumber = 0;
 
 let speechQueue = [];
 let speechToken = 0;
+let currentChunk = "";
+let speechPausedForScreen = false;
+let resumeTimer = null;
 
 function updateVoiceButton() {
   voiceBtn.textContent = voiceOn ? "🔊 VOICE ON" : "🔇 VOICE OFF";
@@ -28,12 +29,7 @@ function updateVoiceButton() {
 
 function updateSendButton(active) {
   sendBtn.textContent = active ? "■" : "➤";
-
-  sendBtn.setAttribute(
-    "aria-label",
-    active ? "Stop JARVIS" : "Send message"
-  );
-
+  sendBtn.setAttribute("aria-label", active ? "Stop JARVIS" : "Send message");
   sendBtn.style.background = active ? "#651b2a" : "";
   sendBtn.style.borderColor = active ? "#ff526b" : "";
   sendBtn.style.color = active ? "#ff7185" : "";
@@ -46,6 +42,13 @@ function updateActivityButton() {
 function cancelSpeech() {
   speechToken++;
   speechQueue = [];
+  currentChunk = "";
+  speechPausedForScreen = false;
+
+  if (resumeTimer) {
+    clearTimeout(resumeTimer);
+    resumeTimer = null;
+  }
 
   if ("speechSynthesis" in window) {
     window.speechSynthesis.cancel();
@@ -77,10 +80,8 @@ function addMessage(text, sender) {
   message.className = "message";
   message.style.marginBottom = "12px";
   message.textContent = sender + ": " + text;
-
   messages.appendChild(message);
   messages.scrollTop = messages.scrollHeight;
-
   return message;
 }
 
@@ -144,28 +145,34 @@ function speakNext(token) {
   if (token !== speechToken) return;
 
   if (!voiceOn || speechQueue.length === 0) {
+    currentChunk = "";
     isSpeaking = false;
     updateActivityButton();
     voiceStatus.textContent = "VOICE SYSTEM READY.";
     return;
   }
 
-  const chunk = speechQueue.shift();
-  const utterance = new SpeechSynthesisUtterance(chunk);
+  if (document.hidden) {
+    speechPausedForScreen = true;
+    return;
+  }
 
+  currentChunk = speechQueue.shift();
+
+  const utterance = new SpeechSynthesisUtterance(currentChunk);
   utterance.lang = "en-IN";
   utterance.rate = 1;
   utterance.pitch = 1;
 
   utterance.onend = () => {
     if (token !== speechToken) return;
+    currentChunk = "";
     speakNext(token);
   };
 
   utterance.onerror = () => {
     if (token !== speechToken) return;
-
-    // Continue with the remaining chunks.
+    currentChunk = "";
     speakNext(token);
   };
 
@@ -179,8 +186,8 @@ function speak(text) {
   if (!cleanText) return;
 
   cancelSpeech();
-
   speechQueue = splitSpeech(cleanText);
+
   const token = speechToken;
 
   isSpeaking = true;
@@ -190,13 +197,66 @@ function speak(text) {
   speakNext(token);
 }
 
+function resumeSpeech() {
+  if (
+    !speechPausedForScreen ||
+    !isSpeaking ||
+    !voiceOn ||
+    speechQueue.length === 0 ||
+    document.hidden
+  ) {
+    return;
+  }
+
+  speechPausedForScreen = false;
+
+  if (resumeTimer) clearTimeout(resumeTimer);
+
+  voiceStatus.textContent = "RESUMING JARVIS VOICE...";
+
+  resumeTimer = setTimeout(() => {
+    resumeTimer = null;
+
+    if (
+      isSpeaking &&
+      voiceOn &&
+      !document.hidden &&
+      speechQueue.length > 0
+    ) {
+      speakNext(speechToken);
+    }
+  }, 700);
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    if (isSpeaking && !speechPausedForScreen) {
+      speechPausedForScreen = true;
+      speechToken++;
+
+      if (currentChunk) {
+        speechQueue.unshift(currentChunk);
+        currentChunk = "";
+      }
+
+      window.speechSynthesis.cancel();
+      voiceStatus.textContent = "VOICE PAUSED. WAITING...";
+    }
+    return;
+  }
+
+  resumeSpeech();
+});
+
+window.addEventListener("focus", resumeSpeech);
+window.addEventListener("pageshow", resumeSpeech);
+
 const SpeechRecognition =
   window.SpeechRecognition ||
   window.webkitSpeechRecognition;
 
 if (SpeechRecognition) {
   recognition = new SpeechRecognition();
-
   recognition.lang = "en-IN";
   recognition.continuous = false;
   recognition.interimResults = true;
@@ -208,7 +268,6 @@ if (SpeechRecognition) {
     isListening = true;
     finalTranscript = "";
     input.value = "";
-
     micBtn.textContent = "🔴";
     voiceStatus.textContent = "LISTENING...";
   };
@@ -247,11 +306,9 @@ if (SpeechRecognition) {
     isListening = false;
     micBtn.textContent = "🎙";
 
-    if (input.value.trim()) {
-      voiceStatus.textContent = "VOICE CAPTURED. REVIEW BEFORE SENDING.";
-    } else {
-      voiceStatus.textContent = "VOICE SYSTEM READY.";
-    }
+    voiceStatus.textContent = input.value.trim()
+      ? "VOICE CAPTURED. REVIEW BEFORE SENDING."
+      : "VOICE SYSTEM READY.";
   };
 } else {
   micBtn.disabled = true;
@@ -392,3 +449,4 @@ input.addEventListener("keydown", event => {
     sendMessage();
   }
 });
+
