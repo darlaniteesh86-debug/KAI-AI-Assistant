@@ -234,15 +234,17 @@ function processWakeTranscript(transcript) {
   sendMessage();
 }
 
-if (SpeechRecognition) {
-  recognition = new SpeechRecognition();
+function createWakeRecognition() {
+  if (!SpeechRecognition) return null;
 
-  recognition.lang = "en-IN";
-  recognition.continuous = true;
-  recognition.interimResults = true;
-  recognition.maxAlternatives = 3;
+  const instance = new SpeechRecognition();
+  instance.lang = "en-IN";
+  instance.continuous = false;
+  instance.interimResults = false;
+  instance.maxAlternatives = 1;
 
-  recognition.onstart = () => {
+  instance.onstart = () => {
+    if (recognition !== instance) return;
     recognitionStarting = false;
     isListening = true;
     micBtn.textContent = "🔴";
@@ -251,22 +253,25 @@ if (SpeechRecognition) {
       : "SAY JARVIS TO TALK.";
   };
 
-  recognition.onresult = event => {
-    for (let i = event.resultIndex; i < event.results.length; i++) {
-      const transcript = event.results[i][0].transcript.trim();
+  instance.onresult = event => {
+    if (recognition !== instance || !event.results || !event.results.length) return;
 
-      if (event.results[i].isFinal) {
-        processWakeTranscript(transcript);
-      }
+    // One final result per listening session prevents stale/duplicate results
+    // from being handled when Android ends and restarts speech recognition.
+    const result = event.results[event.resultIndex] || event.results[0];
+    if (result && result.isFinal) {
+      processWakeTranscript(result[0].transcript);
+      try { instance.stop(); } catch (_) {}
     }
   };
 
-  recognition.onerror = event => {
+  instance.onerror = event => {
+    if (recognition !== instance) return;
     recognitionStarting = false;
 
     if (event.error === "not-allowed") {
       wakeEnabled = false;
-      voiceStatus.textContent = "MICROPHONE PERMISSION DENIED. TAP MIC AFTER ALLOWING ACCESS.";
+      voiceStatus.textContent = "MICROPHONE PERMISSION DENIED. ALLOW MIC ACCESS.";
     } else if (event.error === "service-not-allowed") {
       wakeEnabled = false;
       voiceStatus.textContent = "VOICE SERVICE NOT ALLOWED.";
@@ -279,16 +284,24 @@ if (SpeechRecognition) {
     }
   };
 
-  recognition.onend = () => {
+  instance.onend = () => {
+    if (recognition !== instance) return;
     isListening = false;
     recognitionStarting = false;
     micBtn.textContent = "🎙";
 
-    if (wakeEnabled) {
-      scheduleWakeRestart(1200);
-    }
+    // Android Chrome can leave a stopped SpeechRecognition instance unusable.
+    // Create a fresh instance for the next listening session.
+    recognition = createWakeRecognition();
+
+    if (wakeEnabled) scheduleWakeRestart(900);
   };
 
+  return instance;
+}
+
+if (SpeechRecognition) {
+  recognition = createWakeRecognition();
 } else {
   wakeEnabled = false;
   micBtn.disabled = true;
