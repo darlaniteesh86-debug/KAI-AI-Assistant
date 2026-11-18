@@ -21,6 +21,7 @@ let requestNumber = 0;
 let wakeEnabled = true;
 let wakeArmed = false;
 let restartTimer = null;
+let recognitionStarting = false;
 
 let speechQueue = [];
 let speechToken = 0;
@@ -73,6 +74,7 @@ voiceBtn.addEventListener("click", () => {
   if (!voiceOn) {
     cancelSpeech();
     voiceStatus.textContent = "VOICE SYSTEM OFF.";
+    startWakeListening();
   } else {
     voiceStatus.textContent = "VOICE SYSTEM READY.";
   }
@@ -145,6 +147,150 @@ function splitSpeech(text, maxLength = 80) {
   return chunks;
 }
 
+// WAKE WORD LISTENING
+
+const SpeechRecognition =
+  window.SpeechRecognition ||
+  window.webkitSpeechRecognition;
+
+function scheduleWakeRestart(delay = 1000) {
+  if (!wakeEnabled || document.hidden || !recognition) return;
+
+  if (restartTimer) {
+    clearTimeout(restartTimer);
+  }
+
+  restartTimer = setTimeout(() => {
+    restartTimer = null;
+    startWakeListening();
+  }, delay);
+}
+
+function startWakeListening() {
+  if (
+    !recognition ||
+    !wakeEnabled ||
+    document.hidden ||
+    isListening ||
+    recognitionStarting
+  ) {
+    return;
+  }
+
+  if (activeController || isSpeaking) {
+    scheduleWakeRestart(1200);
+    return;
+  }
+
+  if (restartTimer) {
+    clearTimeout(restartTimer);
+    restartTimer = null;
+  }
+
+  try {
+    recognitionStarting = true;
+    recognition.start();
+  } catch (error) {
+    recognitionStarting = false;
+    scheduleWakeRestart(1500);
+  }
+}
+
+function processWakeTranscript(transcript) {
+  const spokenText = transcript.trim();
+  if (!spokenText) return;
+
+  const wakePattern = /\bjarvis\b/i;
+
+  if (!wakeArmed) {
+    if (!wakePattern.test(spokenText)) return;
+
+    const command = spokenText.replace(wakePattern, "").trim();
+
+    wakeArmed = true;
+
+    if (command) {
+      input.value = command;
+      voiceStatus.textContent = "QUESTION DETECTED...";
+      recognition.stop();
+      sendMessage();
+    } else {
+      voiceStatus.textContent = "YES? I'M LISTENING...";
+    }
+
+    return;
+  }
+
+  input.value = spokenText.replace(wakePattern, "").trim();
+
+  if (!input.value) return;
+
+  wakeArmed = false;
+  voiceStatus.textContent = "QUESTION DETECTED...";
+
+  recognition.stop();
+  sendMessage();
+}
+
+if (SpeechRecognition) {
+  recognition = new SpeechRecognition();
+
+  recognition.lang = "en-IN";
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.maxAlternatives = 3;
+
+  recognition.onstart = () => {
+    recognitionStarting = false;
+    isListening = true;
+    micBtn.textContent = "🔴";
+    voiceStatus.textContent = wakeArmed
+      ? "WAITING FOR YOUR QUESTION..."
+      : "SAY JARVIS TO TALK.";
+  };
+
+  recognition.onresult = event => {
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const transcript = event.results[i][0].transcript.trim();
+
+      if (event.results[i].isFinal) {
+        processWakeTranscript(transcript);
+      }
+    }
+  };
+
+  recognition.onerror = event => {
+    recognitionStarting = false;
+
+    if (event.error === "not-allowed") {
+      wakeEnabled = false;
+      voiceStatus.textContent = "MICROPHONE PERMISSION DENIED.";
+    } else if (event.error === "service-not-allowed") {
+      wakeEnabled = false;
+      voiceStatus.textContent = "VOICE SERVICE NOT ALLOWED.";
+    } else if (event.error !== "no-speech" && event.error !== "aborted") {
+      voiceStatus.textContent = "VOICE ERROR: " + event.error;
+    }
+  };
+
+  recognition.onend = () => {
+    isListening = false;
+    recognitionStarting = false;
+    micBtn.textContent = "🎙";
+
+    if (wakeEnabled) {
+      scheduleWakeRestart(1200);
+    }
+  };
+
+} else {
+  wakeEnabled = false;
+  micBtn.disabled = true;
+  voiceStatus.textContent = "VOICE INPUT NOT SUPPORTED.";
+}
+
+// SPEECH OUTPUT
+
 function speakNext(token) {
   if (token !== speechToken) return;
 
@@ -153,7 +299,7 @@ function speakNext(token) {
     isSpeaking = false;
     updateActivityButton();
     voiceStatus.textContent = "SAY JARVIS TO TALK.";
-    startWakeListening();
+    scheduleWakeRestart(500);
     return;
   }
 
@@ -185,10 +331,18 @@ function speakNext(token) {
 }
 
 function speak(text) {
-  if (!voiceOn || !("speechSynthesis" in window)) return;
+  if (!voiceOn || !("speechSynthesis" in window)) {
+    isSpeaking = false;
+    updateActivityButton();
+    scheduleWakeRestart(500);
+    return;
+  }
 
   const cleanText = cleanForSpeech(text);
-  if (!cleanText) return;
+  if (!cleanText) {
+    scheduleWakeRestart(500);
+    return;
+  }
 
   cancelSpeech();
   speechQueue = splitSpeech(cleanText);
@@ -209,7 +363,9 @@ function resumeSpeech() {
     !voiceOn ||
     speechQueue.length === 0 ||
     document.hidden
-  ) return;
+  ) {
+    return;
+  }
 
   speechPausedForScreen = false;
 
@@ -220,11 +376,18 @@ function resumeSpeech() {
   resumeTimer = setTimeout(() => {
     resumeTimer = null;
 
-    if (isSpeaking && voiceOn && !document.hidden && speechQueue.length > 0) {
+    if (
+      isSpeaking &&
+      voiceOn &&
+      !document.hidden &&
+      speechQueue.length > 0
+    ) {
       speakNext(speechToken);
     }
   }, 700);
 }
+
+// SCREEN VISIBILITY
 
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) {
@@ -240,17 +403,29 @@ document.addEventListener("visibilitychange", () => {
       window.speechSynthesis.cancel();
       voiceStatus.textContent = "VOICE PAUSED. WAITING...";
     }
+
+    if (isListening && recognition) {
+      recognition.stop();
+    }
+
     return;
   }
 
   resumeSpeech();
-  startWakeListening();
+  scheduleWakeRestart(700);
 });
 
-window.addEventListener("focus", resumeSpeech);
-window.addEventListener("pageshow", resumeSpeech);
+window.addEventListener("focus", () => {
+  resumeSpeech();
+  scheduleWakeRestart(700);
+});
 
-// APP COMMAND DETECTION
+window.addEventListener("pageshow", () => {
+  resumeSpeech();
+  scheduleWakeRestart(700);
+});
+
+// APP OPENING COMMANDS
 
 function getAppCommand(text) {
   const normalized = text
@@ -294,133 +469,6 @@ function openAndroidApp(appName) {
 
   voiceStatus.textContent = "OPENING " + appName.toUpperCase() + "...";
   window.location.href = appLinks[appName];
-}
-
-// WAKE WORD RECOGNITION
-
-const SpeechRecognition =
-  window.SpeechRecognition ||
-  window.webkitSpeechRecognition;
-
-function startWakeListening() {
-  if (
-    !recognition ||
-    !wakeEnabled ||
-    isListening ||
-    activeController ||
-    isSpeaking ||
-    document.hidden
-  ) return;
-
-  if (restartTimer) {
-    clearTimeout(restartTimer);
-    restartTimer = null;
-  }
-
-  try {
-    recognition.start();
-  } catch (error) {
-    // Recognition may already be starting.
-  }
-}
-
-function scheduleWakeRestart() {
-  if (!wakeEnabled || document.hidden) return;
-
-  if (restartTimer) clearTimeout(restartTimer);
-
-  restartTimer = setTimeout(() => {
-    restartTimer = null;
-    startWakeListening();
-  }, 1000);
-}
-
-function processWakeTranscript(transcript) {
-  const spokenText = transcript.trim();
-  if (!spokenText) return;
-
-  const wakePattern = /\bjarvis\b/i;
-
-  if (!wakeArmed) {
-    if (!wakePattern.test(spokenText)) return;
-
-    const command = spokenText.replace(wakePattern, "").trim();
-
-    wakeArmed = true;
-
-    if (command) {
-      input.value = command;
-      voiceStatus.textContent = "QUESTION DETECTED...";
-      recognition.stop();
-      sendMessage();
-    } else {
-      voiceStatus.textContent = "YES? I'M LISTENING...";
-    }
-    return;
-  }
-
-  input.value = spokenText.replace(wakePattern, "").trim();
-
-  if (!input.value) return;
-
-  wakeArmed = false;
-  voiceStatus.textContent = "QUESTION DETECTED...";
-
-  recognition.stop();
-  sendMessage();
-}
-
-if (SpeechRecognition) {
-  recognition = new SpeechRecognition();
-
-  recognition.lang = "en-IN";
-  recognition.continuous = true;
-  recognition.interimResults = true;
-  recognition.maxAlternatives = 3;
-
-  recognition.onstart = () => {
-    isListening = true;
-    micBtn.textContent = "🔴";
-    voiceStatus.textContent = wakeArmed
-      ? "WAITING FOR YOUR QUESTION..."
-      : "SAY JARVIS TO TALK.";
-  };
-
-  recognition.onresult = event => {
-    for (let i = event.resultIndex; i < event.results.length; i++) {
-      const transcript = event.results[i][0].transcript.trim();
-
-      if (event.results[i].isFinal) {
-        processWakeTranscript(transcript);
-      }
-    }
-  };
-
-  recognition.onerror = event => {
-    if (event.error === "not-allowed") {
-      wakeEnabled = false;
-      voiceStatus.textContent = "MICROPHONE PERMISSION DENIED.";
-    } else if (event.error === "service-not-allowed") {
-      wakeEnabled = false;
-      voiceStatus.textContent = "VOICE SERVICE NOT ALLOWED.";
-    } else if (event.error !== "no-speech" && event.error !== "aborted") {
-      voiceStatus.textContent = "VOICE ERROR: " + event.error;
-    }
-  };
-
-  recognition.onend = () => {
-    isListening = false;
-    micBtn.textContent = "🎙";
-
-    if (wakeEnabled && !activeController && !isSpeaking) {
-      scheduleWakeRestart();
-    }
-  };
-
-} else {
-  wakeEnabled = false;
-  micBtn.disabled = true;
-  voiceStatus.textContent = "VOICE INPUT NOT SUPPORTED.";
 }
 
 // MICROPHONE BUTTON
@@ -473,7 +521,7 @@ function stopGeneration() {
   updateActivityButton();
   voiceStatus.textContent = "GENERATION STOPPED.";
   input.focus();
-  startWakeListening();
+  scheduleWakeRestart(500);
 }
 
 // SEND MESSAGE
@@ -555,7 +603,9 @@ async function sendMessage() {
       { role: "model", text: data.reply }
     ].slice(-MAX_HISTORY);
 
-    if (voiceOn) speak(data.reply);
+    if (voiceOn) {
+      speak(data.reply);
+    }
 
   } catch (error) {
     if (error.name === "AbortError") return;
@@ -573,7 +623,9 @@ async function sendMessage() {
       input.focus();
       messages.scrollTop = messages.scrollHeight;
 
-      if (!isSpeaking) startWakeListening();
+      if (!isSpeaking) {
+        scheduleWakeRestart(700);
+      }
     }
   }
 }
@@ -581,7 +633,9 @@ async function sendMessage() {
 sendBtn.addEventListener("click", sendMessage);
 
 input.addEventListener("keydown", event => {
-  if (event.key === "Enter") sendMessage();
+  if (event.key === "Enter") {
+    sendMessage();
+  }
 });
 
 // START LISTENING WHEN APP OPENS
@@ -589,3 +643,4 @@ input.addEventListener("keydown", event => {
 window.addEventListener("load", () => {
   setTimeout(startWakeListening, 1200);
 });
+    
