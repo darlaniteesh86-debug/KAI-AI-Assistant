@@ -31,6 +31,21 @@ let currentCharIndex = 0;
 let speechPausedForScreen = false;
 let resumeTimer = null;
 
+function unlockSpeechOutput() {
+  if (!("speechSynthesis" in window)) return;
+
+  try {
+    const silentUnlock = new SpeechSynthesisUtterance("ready");
+    silentUnlock.lang = "en-IN";
+    silentUnlock.volume = 0;
+    silentUnlock.rate = 10;
+    window.speechSynthesis.speak(silentUnlock);
+    window.speechSynthesis.resume();
+  } catch (error) {
+    console.warn("Speech output could not be initialized:", error);
+  }
+}
+
 function updateVoiceButton() {
   voiceBtn.textContent = voiceOn ? "🔊 VOICE ON" : "🔇 VOICE OFF";
 }
@@ -71,6 +86,7 @@ updateVoiceButton();
 updateActivityButton();
 
 voiceBtn.addEventListener("click", () => {
+  unlockSpeechOutput();
   voiceOn = !voiceOn;
   localStorage.setItem(VOICE_KEY, String(voiceOn));
 
@@ -249,9 +265,11 @@ function createWakeRecognition() {
     recognitionStarting = false;
     isListening = true;
     micBtn.textContent = "🔴";
-    voiceStatus.textContent = wakeArmed
-      ? "WAITING FOR YOUR QUESTION..."
-      : "SAY JARVIS TO TALK.";
+    voiceStatus.textContent = manualMicMode
+      ? "LISTENING... SPEAK YOUR QUESTION NOW."
+      : wakeArmed
+        ? "WAITING FOR YOUR QUESTION..."
+        : "SAY JARVIS TO TALK.";
   };
 
   instance.onresult = event => {
@@ -308,11 +326,20 @@ function createWakeRecognition() {
     recognitionStarting = false;
     micBtn.textContent = "🎙";
 
+    // Do not let an unfinished tap-to-talk session leak into the next
+    // automatic wake-word session.
+    if (manualMicMode) {
+      manualMicMode = false;
+      voiceStatus.textContent = "NO WORDS DETECTED. TAP MIC TO TRY AGAIN.";
+    }
+
     // Android Chrome can leave a stopped SpeechRecognition instance unusable.
     // Create a fresh instance for the next listening session.
     recognition = createWakeRecognition();
 
-    if (wakeEnabled) scheduleWakeRestart(900);
+    if (wakeEnabled && !activeController && !isSpeaking) {
+      scheduleWakeRestart(1200);
+    }
   };
 
   return instance;
@@ -349,6 +376,7 @@ function speakNext(token) {
 
   const utterance = new SpeechSynthesisUtterance(currentChunk);
   utterance.lang = "en-IN";
+  utterance.volume = 1;
   utterance.rate = 1;
   utterance.pitch = 1;
 
@@ -377,7 +405,15 @@ function speakNext(token) {
     speakNext(token);
   };
 
-  window.speechSynthesis.speak(utterance);
+  try {
+    window.speechSynthesis.resume();
+    window.speechSynthesis.speak(utterance);
+  } catch (error) {
+    console.error("Speech playback failed:", error);
+    isSpeaking = false;
+    updateActivityButton();
+    voiceStatus.textContent = "VOICE PLAYBACK FAILED. TAP VOICE ON TO RETRY.";
+  }
 }
 
 function speak(text) {
@@ -479,6 +515,32 @@ window.addEventListener("pageshow", () => {
   scheduleWakeRestart(700);
 });
 
+// LOCAL DEVICE INFORMATION
+
+function getLocalInfoAnswer(text) {
+  const normalized = text.toLowerCase().replace(/[.,!?]/g, " ").replace(/\s+/g, " ").trim();
+  const asksTime = /\b(what time is it|current time|tell me the time|time now|what is the time)\b/.test(normalized);
+  const asksDate = /\b(what is the date|what date is it|today s date|current date|today date)\b/.test(normalized);
+
+  if (!asksTime && !asksDate) return null;
+
+  const now = new Date();
+  const time = new Intl.DateTimeFormat("en-IN", {
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(now);
+  const date = new Intl.DateTimeFormat("en-IN", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric"
+  }).format(now);
+
+  if (asksTime && asksDate) return "The current time is " + time + ". Today is " + date + ".";
+  if (asksDate) return "Today is " + date + ".";
+  return "The current time is " + time + ".";
+}
+
 // APP OPENING COMMANDS
 
 function getAppCommand(text) {
@@ -532,6 +594,9 @@ micBtn.addEventListener("click", () => {
     voiceStatus.textContent = "VOICE INPUT IS NOT SUPPORTED IN THIS BROWSER.";
     return;
   }
+
+  // A direct tap is also a user gesture that can initialize Android speech output.
+  unlockSpeechOutput();
 
   // Direct tap-to-talk: no wake word is required.
   wakeEnabled = true;
@@ -598,6 +663,7 @@ function stopGeneration() {
 // SEND MESSAGE
 
 async function sendMessage() {
+  unlockSpeechOutput();
   const text = input.value.trim();
 
   // The send button doubles as Stop only when there is no new message.
@@ -618,6 +684,15 @@ async function sendMessage() {
 
   addMessage(text, "YOU");
   input.value = "";
+
+  const localInfo = getLocalInfoAnswer(text);
+  if (localInfo) {
+    addMessage(localInfo, "JARVIS");
+    if (voiceOn) speak(localInfo);
+    voiceStatus.textContent = "LOCAL DEVICE INFORMATION.";
+    scheduleWakeRestart(700);
+    return;
+  }
 
   const appCommand = getAppCommand(text);
 
