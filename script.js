@@ -427,6 +427,34 @@ function getLocalInfoAnswer(text) {
 
 // APP OPENING COMMANDS
 
+function getAppCapabilityAnswer(text) {
+  const normalized = text
+    .toLowerCase()
+    .replace(/[.,!?]/g, " ")
+    .replace(/\\s+/g, " ")
+    .trim();
+
+  const asksCapability =
+    /\\b(can|could|are|would) you (open|launch|start)\\b/.test(normalized) ||
+    /\\b(are you able to|do you have the ability to) (open|launch|start)\\b/.test(normalized);
+
+  if (!asksCapability) return null;
+
+  const appNames = {
+    youtube: /\\byoutube\\b/,
+    whatsapp: /\\bwhatsapp\\b/,
+    chrome: /\\bchrome\\b/
+  };
+
+  for (const app in appNames) {
+    if (appNames[app].test(normalized)) {
+      return "Yes. I can open " + app + " when you tell me to open it.";
+    }
+  }
+
+  return null;
+}
+
 function getAppCommand(text) {
   const normalized = text
     .toLowerCase()
@@ -566,6 +594,14 @@ async function sendMessage() {
     if (voiceOn) speak(localInfo);
     voiceStatus.textContent = "LOCAL DEVICE INFORMATION.";
       return;
+  }
+
+  const appCapabilityAnswer = getAppCapabilityAnswer(text);
+  if (appCapabilityAnswer) {
+    addMessage(appCapabilityAnswer, "JARVIS");
+    if (voiceOn) speak(appCapabilityAnswer);
+    voiceStatus.textContent = "READY.";
+    return;
   }
 
   const appCommand = getAppCommand(text);
