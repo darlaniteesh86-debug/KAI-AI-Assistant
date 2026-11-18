@@ -431,19 +431,19 @@ function getAppCapabilityAnswer(text) {
   const normalized = text
     .toLowerCase()
     .replace(/[.,!?]/g, " ")
-    .replace(/\\s+/g, " ")
+    .replace(/\s+/g, " ")
     .trim();
 
   const asksCapability =
-    /\\b(can|could|are|would) you (open|launch|start)\\b/.test(normalized) ||
-    /\\b(are you able to|do you have the ability to) (open|launch|start)\\b/.test(normalized);
+    /\b(can|could|are|would) you (open|launch|start)\b/.test(normalized) ||
+    /\b(are you able to|do you have the ability to) (open|launch|start)\b/.test(normalized);
 
   if (!asksCapability) return null;
 
   const appNames = {
-    youtube: /\\byoutube\\b/,
-    whatsapp: /\\bwhatsapp\\b/,
-    chrome: /\\bchrome\\b/
+    youtube: /\byoutube\b/,
+    whatsapp: /\bwhatsapp\b/,
+    chrome: /\bchrome\b/
   };
 
   for (const app in appNames) {
