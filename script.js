@@ -548,12 +548,23 @@ micBtn.addEventListener("click", () => {
     restartTimer = null;
   }
 
-  // End the current wake session; onend creates a fresh recognizer.
-  // The fresh session will capture this tap-to-talk command.
+  // If recognition is already active, keep that live session running.
+  // Stopping it and restarting asynchronously can lose Android's user-gesture
+  // permission to start speech recognition.
   if (isListening) {
-    try { recognition.stop(); } catch (_) {}
-  } else if (!recognitionStarting) {
-    startWakeListening();
+    voiceStatus.textContent = "LISTENING... SPEAK YOUR QUESTION NOW.";
+    return;
+  }
+
+  if (!recognitionStarting) {
+    try {
+      recognitionStarting = true;
+      recognition.start();
+    } catch (error) {
+      recognitionStarting = false;
+      manualMicMode = false;
+      voiceStatus.textContent = "COULD NOT START MIC. TAP TO RETRY.";
+    }
   }
 });
 
