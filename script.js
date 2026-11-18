@@ -11,16 +11,16 @@ const API_URL = "https://jarvis-ai-backend.darlaniteesh86.workers.dev";
 const VOICE_KEY = "jarvis_voice_enabled";
 const MAX_HISTORY = 20;
 
-// Chat history exists only while this page is open.
-// It will be empty when JARVIS is reopened.
 let history = [];
-
 let voiceOn = localStorage.getItem(VOICE_KEY) !== "false";
 let recognition = null;
 let isListening = false;
 let isSpeaking = false;
 let activeController = null;
 let requestNumber = 0;
+
+let speechQueue = [];
+let speechToken = 0;
 
 function updateVoiceButton() {
   voiceBtn.textContent = voiceOn ? "🔊 VOICE ON" : "🔇 VOICE OFF";
@@ -43,18 +43,30 @@ function updateActivityButton() {
   updateSendButton(Boolean(activeController || isSpeaking));
 }
 
+function cancelSpeech() {
+  speechToken++;
+  speechQueue = [];
+
+  if ("speechSynthesis" in window) {
+    window.speechSynthesis.cancel();
+  }
+
+  isSpeaking = false;
+  updateActivityButton();
+}
+
 updateVoiceButton();
 updateActivityButton();
 
 voiceBtn.addEventListener("click", () => {
   voiceOn = !voiceOn;
-
   localStorage.setItem(VOICE_KEY, String(voiceOn));
 
-  if (!voiceOn && "speechSynthesis" in window) {
-    window.speechSynthesis.cancel();
-    isSpeaking = false;
-    updateActivityButton();
+  if (!voiceOn) {
+    cancelSpeech();
+    voiceStatus.textContent = "VOICE SYSTEM OFF.";
+  } else {
+    voiceStatus.textContent = "VOICE SYSTEM READY.";
   }
 
   updateVoiceButton();
@@ -62,7 +74,6 @@ voiceBtn.addEventListener("click", () => {
 
 function addMessage(text, sender) {
   const message = document.createElement("div");
-
   message.className = "message";
   message.style.marginBottom = "12px";
   message.textContent = sender + ": " + text;
@@ -93,39 +104,90 @@ function cleanForSpeech(text) {
     .trim();
 }
 
-function speak(text) {
-  if (!voiceOn || !("speechSynthesis" in window)) return;
+function splitSpeech(text, maxLength = 220) {
+  const sentences = text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [text];
+  const chunks = [];
+  let current = "";
 
-  const cleanText = cleanForSpeech(text);
+  for (const sentence of sentences) {
+    const part = sentence.trim();
+    if (!part) continue;
 
-  if (!cleanText) return;
+    if ((current + " " + part).trim().length <= maxLength) {
+      current = (current + " " + part).trim();
+    } else {
+      if (current) chunks.push(current);
 
-  window.speechSynthesis.cancel();
+      if (part.length <= maxLength) {
+        current = part;
+      } else {
+        const words = part.split(/\s+/);
+        current = "";
 
-  const utterance = new SpeechSynthesisUtterance(cleanText);
+        for (const word of words) {
+          if ((current + " " + word).trim().length > maxLength) {
+            if (current) chunks.push(current);
+            current = word;
+          } else {
+            current = (current + " " + word).trim();
+          }
+        }
+      }
+    }
+  }
+
+  if (current) chunks.push(current);
+  return chunks;
+}
+
+function speakNext(token) {
+  if (token !== speechToken) return;
+
+  if (!voiceOn || speechQueue.length === 0) {
+    isSpeaking = false;
+    updateActivityButton();
+    voiceStatus.textContent = "VOICE SYSTEM READY.";
+    return;
+  }
+
+  const chunk = speechQueue.shift();
+  const utterance = new SpeechSynthesisUtterance(chunk);
 
   utterance.lang = "en-IN";
   utterance.rate = 1;
   utterance.pitch = 1;
 
-  isSpeaking = true;
-  updateActivityButton();
-
-  voiceStatus.textContent = "JARVIS IS SPEAKING...";
-
   utterance.onend = () => {
-    isSpeaking = false;
-    updateActivityButton();
-    voiceStatus.textContent = "VOICE SYSTEM READY.";
+    if (token !== speechToken) return;
+    speakNext(token);
   };
 
   utterance.onerror = () => {
-    isSpeaking = false;
-    updateActivityButton();
-    voiceStatus.textContent = "VOICE SYSTEM READY.";
+    if (token !== speechToken) return;
+
+    // Continue with the remaining chunks.
+    speakNext(token);
   };
 
   window.speechSynthesis.speak(utterance);
+}
+
+function speak(text) {
+  if (!voiceOn || !("speechSynthesis" in window)) return;
+
+  const cleanText = cleanForSpeech(text);
+  if (!cleanText) return;
+
+  cancelSpeech();
+
+  speechQueue = splitSpeech(cleanText);
+  const token = speechToken;
+
+  isSpeaking = true;
+  updateActivityButton();
+  voiceStatus.textContent = "JARVIS IS SPEAKING...";
+
+  speakNext(token);
 }
 
 const SpeechRecognition =
@@ -137,28 +199,60 @@ if (SpeechRecognition) {
 
   recognition.lang = "en-IN";
   recognition.continuous = false;
-  recognition.interimResults = false;
+  recognition.interimResults = true;
+  recognition.maxAlternatives = 3;
+
+  let finalTranscript = "";
 
   recognition.onstart = () => {
     isListening = true;
+    finalTranscript = "";
+    input.value = "";
+
     micBtn.textContent = "🔴";
     voiceStatus.textContent = "LISTENING...";
   };
 
   recognition.onresult = event => {
-    input.value = event.results[0][0].transcript;
-    voiceStatus.textContent = "VOICE CAPTURED. TAP SEND.";
+    let interimTranscript = "";
+
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const transcript = event.results[i][0].transcript;
+
+      if (event.results[i].isFinal) {
+        finalTranscript += transcript + " ";
+      } else {
+        interimTranscript += transcript;
+      }
+    }
+
+    input.value = (finalTranscript + interimTranscript).trim();
+
+    voiceStatus.textContent = interimTranscript
+      ? "HEARING YOUR VOICE..."
+      : "VOICE CAPTURED. REVIEW BEFORE SENDING.";
   };
 
   recognition.onerror = event => {
-    voiceStatus.textContent = "MICROPHONE ERROR: " + event.error;
+    if (event.error === "not-allowed") {
+      voiceStatus.textContent = "MICROPHONE PERMISSION DENIED.";
+    } else if (event.error === "no-speech") {
+      voiceStatus.textContent = "NO SPEECH DETECTED. TRY AGAIN.";
+    } else {
+      voiceStatus.textContent = "VOICE ERROR: " + event.error;
+    }
   };
 
   recognition.onend = () => {
     isListening = false;
     micBtn.textContent = "🎙";
-  };
 
+    if (input.value.trim()) {
+      voiceStatus.textContent = "VOICE CAPTURED. REVIEW BEFORE SENDING.";
+    } else {
+      voiceStatus.textContent = "VOICE SYSTEM READY.";
+    }
+  };
 } else {
   micBtn.disabled = true;
   voiceStatus.textContent = "VOICE INPUT NOT SUPPORTED.";
@@ -189,11 +283,7 @@ function stopGeneration() {
     activeController = null;
   }
 
-  if ("speechSynthesis" in window) {
-    window.speechSynthesis.cancel();
-  }
-
-  isSpeaking = false;
+  cancelSpeech();
 
   const thinking = document.getElementById("thinkingMessage");
 
@@ -203,9 +293,7 @@ function stopGeneration() {
   }
 
   updateActivityButton();
-
   voiceStatus.textContent = "GENERATION STOPPED.";
-
   input.focus();
 }
 
@@ -216,7 +304,6 @@ async function sendMessage() {
   }
 
   const text = input.value.trim();
-
   if (!text) return;
 
   if (isListening && recognition) {
@@ -224,21 +311,17 @@ async function sendMessage() {
   }
 
   addMessage(text, "YOU");
-
   input.value = "";
 
   const thinking = addMessage("Thinking...", "JARVIS");
-
   thinking.id = "thinkingMessage";
 
   const controller = new AbortController();
-
   activeController = controller;
 
   const thisRequest = ++requestNumber;
 
   updateActivityButton();
-
   voiceStatus.textContent = "JARVIS IS THINKING...";
 
   const updatedHistory = [
@@ -249,13 +332,10 @@ async function sendMessage() {
   try {
     const response = await fetch(API_URL, {
       method: "POST",
-
       headers: {
         "Content-Type": "application/json"
       },
-
       signal: controller.signal,
-
       body: JSON.stringify({
         messages: updatedHistory.slice(-MAX_HISTORY).map(item => ({
           role: item.role,
@@ -277,7 +357,6 @@ async function sendMessage() {
     if (thisRequest !== requestNumber) return;
 
     thinking.textContent = "JARVIS: " + data.reply;
-
     thinking.removeAttribute("id");
 
     history = [
@@ -293,18 +372,14 @@ async function sendMessage() {
     if (thisRequest === requestNumber) {
       thinking.textContent = "JARVIS: " + error.message;
       thinking.removeAttribute("id");
-
       voiceStatus.textContent = "REQUEST FAILED.";
     }
 
   } finally {
     if (thisRequest === requestNumber) {
       activeController = null;
-
       updateActivityButton();
-
       input.focus();
-
       messages.scrollTop = messages.scrollHeight;
     }
   }
