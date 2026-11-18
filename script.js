@@ -520,7 +520,7 @@ window.addEventListener("pageshow", () => {
 function getLocalInfoAnswer(text) {
   const normalized = text.toLowerCase().replace(/[.,!?]/g, " ").replace(/\s+/g, " ").trim();
   const asksTime = /\b(what time is it|current time|tell me the time|time now|what is the time)\b/.test(normalized);
-  const asksDate = /\b(what is the date|what date is it|today s date|current date|today date)\b/.test(normalized);
+  const asksDate = /\b(what is the date|what date is it|today'?s date|current date|today date)\b/.test(normalized);
 
   if (!asksTime && !asksDate) return null;
 
