@@ -9,7 +9,6 @@ const voiceStatus = document.getElementById("voiceStatus");
 const API_URL = "https://jarvis-ai-backend.darlaniteesh86.workers.dev";
 const VOICE_KEY = "jarvis_voice_enabled";
 const MAX_HISTORY = 20;
-const WAKE_WORD = "jarvis";
 
 let history = [];
 let voiceOn = localStorage.getItem(VOICE_KEY) !== "false";
@@ -143,7 +142,6 @@ function splitSpeech(text, maxLength = 80) {
   }
 
   if (current) chunks.push(current);
-
   return chunks;
 }
 
@@ -211,9 +209,7 @@ function resumeSpeech() {
     !voiceOn ||
     speechQueue.length === 0 ||
     document.hidden
-  ) {
-    return;
-  }
+  ) return;
 
   speechPausedForScreen = false;
 
@@ -224,12 +220,7 @@ function resumeSpeech() {
   resumeTimer = setTimeout(() => {
     resumeTimer = null;
 
-    if (
-      isSpeaking &&
-      voiceOn &&
-      !document.hidden &&
-      speechQueue.length > 0
-    ) {
+    if (isSpeaking && voiceOn && !document.hidden && speechQueue.length > 0) {
       speakNext(speechToken);
     }
   }, 700);
@@ -249,7 +240,6 @@ document.addEventListener("visibilitychange", () => {
       window.speechSynthesis.cancel();
       voiceStatus.textContent = "VOICE PAUSED. WAITING...";
     }
-
     return;
   }
 
@@ -260,19 +250,32 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("focus", resumeSpeech);
 window.addEventListener("pageshow", resumeSpeech);
 
-// APP OPENING COMMANDS
+// APP COMMAND DETECTION
 
 function getAppCommand(text) {
   const normalized = text
     .toLowerCase()
-    .replace(/[.!?]+$/g, "")
+    .replace(/[.,!?]/g, " ")
+    .replace(/\s+/g, " ")
     .trim();
 
-  const match = normalized.match(
-    /^(?:please\s+)?(?:open|launch|start)\s+(youtube|whatsapp|chrome)$/
-  );
+  const appNames = {
+    youtube: /\byoutube\b/,
+    whatsapp: /\bwhatsapp\b/,
+    chrome: /\bchrome\b/
+  };
 
-  return match ? match[1] : null;
+  const openWords = /\b(open|launch|start|go to|take me to)\b/;
+
+  if (!openWords.test(normalized)) return null;
+
+  for (const app in appNames) {
+    if (appNames[app].test(normalized)) {
+      return app;
+    }
+  }
+
+  return null;
 }
 
 function openAndroidApp(appName) {
@@ -293,7 +296,7 @@ function openAndroidApp(appName) {
   window.location.href = appLinks[appName];
 }
 
-// WAKE WORD VOICE RECOGNITION
+// WAKE WORD RECOGNITION
 
 const SpeechRecognition =
   window.SpeechRecognition ||
@@ -307,9 +310,7 @@ function startWakeListening() {
     activeController ||
     isSpeaking ||
     document.hidden
-  ) {
-    return;
-  }
+  ) return;
 
   if (restartTimer) {
     clearTimeout(restartTimer);
@@ -343,9 +344,7 @@ function processWakeTranscript(transcript) {
   if (!wakeArmed) {
     if (!wakePattern.test(spokenText)) return;
 
-    const command = spokenText
-      .replace(wakePattern, "")
-      .trim();
+    const command = spokenText.replace(wakePattern, "").trim();
 
     wakeArmed = true;
 
@@ -357,7 +356,6 @@ function processWakeTranscript(transcript) {
     } else {
       voiceStatus.textContent = "YES? I'M LISTENING...";
     }
-
     return;
   }
 
@@ -405,10 +403,7 @@ if (SpeechRecognition) {
     } else if (event.error === "service-not-allowed") {
       wakeEnabled = false;
       voiceStatus.textContent = "VOICE SERVICE NOT ALLOWED.";
-    } else if (
-      event.error !== "no-speech" &&
-      event.error !== "aborted"
-    ) {
+    } else if (event.error !== "no-speech" && event.error !== "aborted") {
       voiceStatus.textContent = "VOICE ERROR: " + event.error;
     }
   };
@@ -501,8 +496,6 @@ async function sendMessage() {
   addMessage(text, "YOU");
   input.value = "";
 
-  // Check whether the user requested an Android app.
-
   const appCommand = getAppCommand(text);
 
   if (appCommand) {
@@ -562,9 +555,7 @@ async function sendMessage() {
       { role: "model", text: data.reply }
     ].slice(-MAX_HISTORY);
 
-    if (voiceOn) {
-      speak(data.reply);
-    }
+    if (voiceOn) speak(data.reply);
 
   } catch (error) {
     if (error.name === "AbortError") return;
@@ -582,9 +573,7 @@ async function sendMessage() {
       input.focus();
       messages.scrollTop = messages.scrollHeight;
 
-      if (!isSpeaking) {
-        startWakeListening();
-      }
+      if (!isSpeaking) startWakeListening();
     }
   }
 }
@@ -592,12 +581,10 @@ async function sendMessage() {
 sendBtn.addEventListener("click", sendMessage);
 
 input.addEventListener("keydown", event => {
-  if (event.key === "Enter") {
-    sendMessage();
-  }
+  if (event.key === "Enter") sendMessage();
 });
 
-// START LISTENING WHEN THE APP OPENS
+// START LISTENING WHEN APP OPENS
 
 window.addEventListener("load", () => {
   setTimeout(startWakeListening, 1200);
