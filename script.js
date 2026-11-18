@@ -260,6 +260,39 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("focus", resumeSpeech);
 window.addEventListener("pageshow", resumeSpeech);
 
+// APP OPENING COMMANDS
+
+function getAppCommand(text) {
+  const normalized = text
+    .toLowerCase()
+    .replace(/[.!?]+$/g, "")
+    .trim();
+
+  const match = normalized.match(
+    /^(?:please\s+)?(?:open|launch|start)\s+(youtube|whatsapp|chrome)$/
+  );
+
+  return match ? match[1] : null;
+}
+
+function openAndroidApp(appName) {
+  const appLinks = {
+    youtube:
+      "intent://www.youtube.com/#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=https%3A%2F%2Fwww.youtube.com%2F;end",
+
+    whatsapp:
+      "intent://send/#Intent;scheme=whatsapp;package=com.whatsapp;S.browser_fallback_url=https%3A%2F%2Fwww.whatsapp.com%2F;end",
+
+    chrome:
+      "intent://www.google.com/#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=https%3A%2F%2Fwww.google.com%2F;end"
+  };
+
+  if (!appLinks[appName]) return;
+
+  voiceStatus.textContent = "OPENING " + appName.toUpperCase() + "...";
+  window.location.href = appLinks[appName];
+}
+
 // WAKE WORD VOICE RECOGNITION
 
 const SpeechRecognition =
@@ -372,8 +405,10 @@ if (SpeechRecognition) {
     } else if (event.error === "service-not-allowed") {
       wakeEnabled = false;
       voiceStatus.textContent = "VOICE SERVICE NOT ALLOWED.";
-    } else if (event.error !== "no-speech" &&
-               event.error !== "aborted") {
+    } else if (
+      event.error !== "no-speech" &&
+      event.error !== "aborted"
+    ) {
       voiceStatus.textContent = "VOICE ERROR: " + event.error;
     }
   };
@@ -393,7 +428,7 @@ if (SpeechRecognition) {
   voiceStatus.textContent = "VOICE INPUT NOT SUPPORTED.";
 }
 
-// Microphone button toggles wake-word listening.
+// MICROPHONE BUTTON
 
 micBtn.addEventListener("click", () => {
   if (!recognition) return;
@@ -418,6 +453,8 @@ micBtn.addEventListener("click", () => {
     startWakeListening();
   }
 });
+
+// STOP GENERATION
 
 function stopGeneration() {
   if (!activeController && !isSpeaking) return;
@@ -444,6 +481,8 @@ function stopGeneration() {
   startWakeListening();
 }
 
+// SEND MESSAGE
+
 async function sendMessage() {
   if (activeController || isSpeaking) {
     stopGeneration();
@@ -461,6 +500,16 @@ async function sendMessage() {
 
   addMessage(text, "YOU");
   input.value = "";
+
+  // Check whether the user requested an Android app.
+
+  const appCommand = getAppCommand(text);
+
+  if (appCommand) {
+    addMessage("Opening " + appCommand + "...", "JARVIS");
+    openAndroidApp(appCommand);
+    return;
+  }
 
   const thinking = addMessage("Thinking...", "JARVIS");
   thinking.id = "thinkingMessage";
@@ -548,7 +597,7 @@ input.addEventListener("keydown", event => {
   }
 });
 
-// Start listening when the app opens.
+// START LISTENING WHEN THE APP OPENS
 
 window.addEventListener("load", () => {
   setTimeout(startWakeListening, 1200);
