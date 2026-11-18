@@ -431,19 +431,19 @@ function getAppCapabilityAnswer(text) {
   const normalized = text
     .toLowerCase()
     .replace(/[.,!?]/g, " ")
-    .replace(/\\s+/g, " ")
+    .replace(/\s+/g, " ")
     .trim();
 
   const asksCapability =
-    /\\b(can|could|are|would) you (open|launch|start)\\b/.test(normalized) ||
-    /\\b(are you able to|do you have the ability to) (open|launch|start)\\b/.test(normalized);
+    /\b(can|could|are|would) you (open|launch|start)\b/.test(normalized) ||
+    /\b(are you able to|do you have the ability to) (open|launch|start)\b/.test(normalized);
 
   if (!asksCapability) return null;
 
   const appNames = {
-    youtube: /\\byoutube\\b/,
-    whatsapp: /\\bwhatsapp\\b/,
-    chrome: /\\bchrome\\b/
+    youtube: /\byoutube\b/,
+    whatsapp: /\bwhatsapp\b/,
+    chrome: /\bchrome\b/
   };
 
   for (const app in appNames) {
@@ -483,38 +483,19 @@ function getAppCommand(text) {
 
 function openAndroidApp(appName) {
   const appLinks = {
-    youtube: {
-      url: "intent://www.youtube.com/#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=https%3A%2F%2Fwww.youtube.com%2F;end",
-      fallback: "https://www.youtube.com/"
-    },
-    whatsapp: {
-      url: "intent://send/#Intent;scheme=whatsapp;package=com.whatsapp;S.browser_fallback_url=https%3A%2F%2Fwww.whatsapp.com%2F;end",
-      fallback: "https://www.whatsapp.com/"
-    },
-    chrome: {
-      url: "intent://www.google.com/#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=https%3A%2F%2Fwww.google.com%2F;end",
-      fallback: "https://www.google.com/"
-    }
+    youtube: "intent://www.youtube.com/#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=https%3A%2F%2Fwww.youtube.com%2F;end",
+    whatsapp: "intent://send/#Intent;scheme=whatsapp;package=com.whatsapp;S.browser_fallback_url=https%3A%2F%2Fwa.me%2F;end",
+    chrome: "googlechrome://navigate?url=https%3A%2F%2Fwww.google.com"
   };
 
-  const app = appLinks[appName];
-  if (!app) return;
+  const appUrl = appLinks[appName];
+  if (!appUrl) return;
 
   voiceStatus.textContent = "OPENING " + appName.toUpperCase() + "...";
 
-  // Use a real link activation so Android can handle the external app intent
-  // from the user's Send-button gesture, including when JARVIS is installed as a PWA.
-  const launchLink = document.createElement("a");
-  launchLink.href = app.url;
-  launchLink.target = "_self";
-  launchLink.rel = "noopener";
-  launchLink.style.display = "none";
-  document.body.appendChild(launchLink);
-  launchLink.click();
-  launchLink.remove();
-
-  // Do not silently redirect to a website: report the requested app launch.
-  // If Android cannot resolve the intent, the user can tell us which app is installed.
+  // Navigate directly during the Send-button user gesture. A synthetic,
+  // hidden-anchor click can lose Android's permission to launch another app.
+  window.location.href = appUrl;
 }
 
 // MICROPHONE BUTTON
