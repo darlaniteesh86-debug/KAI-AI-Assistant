@@ -487,10 +487,10 @@ function openAndroidApp(appName) {
       "intent://www.youtube.com/#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=https%3A%2F%2Fwww.youtube.com%2F;end",
 
     whatsapp:
-      "https://wa.me/",
+      "intent://send/#Intent;scheme=whatsapp;package=com.whatsapp;end",
 
     chrome:
-      "intent://navigate?url=https%3A%2F%2Fwww.google.com%2F#Intent;scheme=googlechrome;package=com.android.chrome;end"
+      "intent://www.google.com/#Intent;scheme=https;package=com.android.chrome;end"
   };
 
   if (!appLinks[appName]) return;
