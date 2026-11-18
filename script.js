@@ -1,3 +1,4 @@
+
 const input = document.getElementById("userInput");
 const sendBtn = document.getElementById("sendBtn");
 const micBtn = document.getElementById("micBtn");
@@ -105,7 +106,8 @@ function cleanForSpeech(text) {
     .trim();
 }
 
-function splitSpeech(text, maxLength = 220) {
+// Create smaller speech chunks
+function splitSpeech(text, maxLength = 80) {
   const sentences = text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [text];
   const chunks = [];
   let current = "";
@@ -116,28 +118,28 @@ function splitSpeech(text, maxLength = 220) {
 
     if ((current + " " + part).trim().length <= maxLength) {
       current = (current + " " + part).trim();
-    } else {
-      if (current) chunks.push(current);
+      continue;
+    }
 
-      if (part.length <= maxLength) {
-        current = part;
+    if (current) {
+      chunks.push(current);
+      current = "";
+    }
+
+    const words = part.split(/\s+/);
+
+    for (const word of words) {
+      if ((current + " " + word).trim().length > maxLength) {
+        if (current) chunks.push(current);
+        current = word;
       } else {
-        const words = part.split(/\s+/);
-        current = "";
-
-        for (const word of words) {
-          if ((current + " " + word).trim().length > maxLength) {
-            if (current) chunks.push(current);
-            current = word;
-          } else {
-            current = (current + " " + word).trim();
-          }
-        }
+        current = (current + " " + word).trim();
       }
     }
   }
 
   if (current) chunks.push(current);
+
   return chunks;
 }
 
@@ -242,6 +244,7 @@ document.addEventListener("visibilitychange", () => {
       window.speechSynthesis.cancel();
       voiceStatus.textContent = "VOICE PAUSED. WAITING...";
     }
+
     return;
   }
 
@@ -251,6 +254,7 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("focus", resumeSpeech);
 window.addEventListener("pageshow", resumeSpeech);
 
+// Voice recognition
 const SpeechRecognition =
   window.SpeechRecognition ||
   window.webkitSpeechRecognition;
@@ -310,6 +314,7 @@ if (SpeechRecognition) {
       ? "VOICE CAPTURED. REVIEW BEFORE SENDING."
       : "VOICE SYSTEM READY.";
   };
+
 } else {
   micBtn.disabled = true;
   voiceStatus.textContent = "VOICE INPUT NOT SUPPORTED.";
@@ -449,4 +454,3 @@ input.addEventListener("keydown", event => {
     sendMessage();
   }
 });
-
