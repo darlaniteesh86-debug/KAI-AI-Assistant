@@ -26,6 +26,7 @@ let recognitionStarting = false;
 let speechQueue = [];
 let speechToken = 0;
 let currentChunk = "";
+let currentCharIndex = 0;
 let speechPausedForScreen = false;
 let resumeTimer = null;
 
@@ -49,6 +50,7 @@ function cancelSpeech() {
   speechToken++;
   speechQueue = [];
   currentChunk = "";
+  currentCharIndex = 0;
   speechPausedForScreen = false;
 
   if (resumeTimer) {
@@ -264,10 +266,14 @@ if (SpeechRecognition) {
 
     if (event.error === "not-allowed") {
       wakeEnabled = false;
-      voiceStatus.textContent = "MICROPHONE PERMISSION DENIED.";
+      voiceStatus.textContent = "MICROPHONE PERMISSION DENIED. TAP MIC AFTER ALLOWING ACCESS.";
     } else if (event.error === "service-not-allowed") {
       wakeEnabled = false;
       voiceStatus.textContent = "VOICE SERVICE NOT ALLOWED.";
+    } else if (event.error === "audio-capture") {
+      voiceStatus.textContent = "MICROPHONE NOT AVAILABLE.";
+    } else if (event.error === "network") {
+      voiceStatus.textContent = "VOICE NETWORK ERROR. RETRYING...";
     } else if (event.error !== "no-speech" && event.error !== "aborted") {
       voiceStatus.textContent = "VOICE ERROR: " + event.error;
     }
@@ -315,15 +321,28 @@ function speakNext(token) {
   utterance.rate = 1;
   utterance.pitch = 1;
 
+  currentCharIndex = 0;
+  utterance.onboundary = event => {
+    if (token !== speechToken) return;
+    if (typeof event.charIndex === "number") {
+      currentCharIndex = Math.max(currentCharIndex, event.charIndex);
+    }
+  };
+
   utterance.onend = () => {
     if (token !== speechToken) return;
     currentChunk = "";
+    currentCharIndex = 0;
     speakNext(token);
   };
 
-  utterance.onerror = () => {
+  utterance.onerror = event => {
     if (token !== speechToken) return;
+    // Ignore interruptions caused by screen changes; visibility handler
+    // keeps the unspoken remainder queued for resume.
+    if (event && event.error === "interrupted" && speechPausedForScreen) return;
     currentChunk = "";
+    currentCharIndex = 0;
     speakNext(token);
   };
 
@@ -396,8 +415,12 @@ document.addEventListener("visibilitychange", () => {
       speechToken++;
 
       if (currentChunk) {
-        speechQueue.unshift(currentChunk);
+        // Resume from the last reported speech boundary instead of replaying
+        // the entire sentence after the app returns to the foreground.
+        const remainder = currentChunk.slice(currentCharIndex).trim();
+        if (remainder) speechQueue.unshift(remainder);
         currentChunk = "";
+        currentCharIndex = 0;
       }
 
       window.speechSynthesis.cancel();
@@ -527,13 +550,17 @@ function stopGeneration() {
 // SEND MESSAGE
 
 async function sendMessage() {
-  if (activeController || isSpeaking) {
-    stopGeneration();
+  const text = input.value.trim();
+
+  // The send button doubles as Stop only when there is no new message.
+  if (!text) {
+    if (activeController || isSpeaking) stopGeneration();
     return;
   }
 
-  const text = input.value.trim();
-  if (!text) return;
+  // A new question replaces the current request or speech instead of being
+  // discarded as a Stop command.
+  if (activeController || isSpeaking) stopGeneration();
 
   wakeArmed = false;
 
