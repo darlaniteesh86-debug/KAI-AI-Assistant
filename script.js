@@ -22,6 +22,7 @@ let wakeEnabled = true;
 let wakeArmed = false;
 let restartTimer = null;
 let recognitionStarting = false;
+let manualMicMode = false;
 
 let speechQueue = [];
 let speechToken = 0;
@@ -256,13 +257,25 @@ function createWakeRecognition() {
   instance.onresult = event => {
     if (recognition !== instance || !event.results || !event.results.length) return;
 
-    // One final result per listening session prevents stale/duplicate results
-    // from being handled when Android ends and restarts speech recognition.
     const result = event.results[event.resultIndex] || event.results[0];
-    if (result && result.isFinal) {
-      processWakeTranscript(result[0].transcript);
+    if (!result || !result.isFinal) return;
+
+    const transcript = result[0].transcript.trim();
+
+    if (manualMicMode) {
+      manualMicMode = false;
+      if (transcript) {
+        input.value = transcript;
+        voiceStatus.textContent = "VOICE CAPTURED. TAP SEND.";
+      } else {
+        voiceStatus.textContent = "NO WORDS DETECTED. TAP MIC TO TRY AGAIN.";
+      }
       try { instance.stop(); } catch (_) {}
+      return;
     }
+
+    processWakeTranscript(transcript);
+    try { instance.stop(); } catch (_) {}
   };
 
   instance.onerror = event => {
@@ -276,9 +289,14 @@ function createWakeRecognition() {
       wakeEnabled = false;
       voiceStatus.textContent = "VOICE SERVICE NOT ALLOWED.";
     } else if (event.error === "audio-capture") {
+      manualMicMode = false;
       voiceStatus.textContent = "MICROPHONE NOT AVAILABLE.";
     } else if (event.error === "network") {
-      voiceStatus.textContent = "VOICE NETWORK ERROR. RETRYING...";
+      manualMicMode = false;
+      voiceStatus.textContent = "VOICE NETWORK ERROR. CHECK INTERNET AND RETRY.";
+    } else if (event.error === "no-speech" && manualMicMode) {
+      manualMicMode = false;
+      voiceStatus.textContent = "NO SPEECH DETECTED. TAP MIC TO TRY AGAIN.";
     } else if (event.error !== "no-speech" && event.error !== "aborted") {
       voiceStatus.textContent = "VOICE ERROR: " + event.error;
     }
@@ -510,25 +528,31 @@ function openAndroidApp(appName) {
 // MICROPHONE BUTTON
 
 micBtn.addEventListener("click", () => {
-  if (!recognition) return;
+  if (!recognition || !SpeechRecognition) {
+    voiceStatus.textContent = "VOICE INPUT IS NOT SUPPORTED IN THIS BROWSER.";
+    return;
+  }
 
-  if (wakeEnabled) {
-    wakeEnabled = false;
-    wakeArmed = false;
+  // Direct tap-to-talk: no wake word is required.
+  wakeEnabled = true;
+  wakeArmed = false;
+  manualMicMode = true;
 
-    if (restartTimer) {
-      clearTimeout(restartTimer);
-      restartTimer = null;
-    }
+  if (activeController) stopGeneration();
+  if (isSpeaking) cancelSpeech();
 
-    if (isListening) recognition.stop();
+  voiceStatus.textContent = "LISTENING... SPEAK YOUR QUESTION NOW.";
 
-    voiceStatus.textContent = "WAKE WORD LISTENING OFF.";
-    micBtn.textContent = "🎙";
-  } else {
-    wakeEnabled = true;
-    wakeArmed = false;
-    voiceStatus.textContent = "STARTING WAKE WORD...";
+  if (restartTimer) {
+    clearTimeout(restartTimer);
+    restartTimer = null;
+  }
+
+  // End the current wake session; onend creates a fresh recognizer.
+  // The fresh session will capture this tap-to-talk command.
+  if (isListening) {
+    try { recognition.stop(); } catch (_) {}
+  } else if (!recognitionStarting) {
     startWakeListening();
   }
 });
