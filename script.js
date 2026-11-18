@@ -483,20 +483,38 @@ function getAppCommand(text) {
 
 function openAndroidApp(appName) {
   const appLinks = {
-    youtube:
-      "intent://www.youtube.com/#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=https%3A%2F%2Fwww.youtube.com%2F;end",
-
-    whatsapp:
-      "intent://send/#Intent;scheme=whatsapp;package=com.whatsapp;end",
-
-    chrome:
-      "intent://www.google.com/#Intent;scheme=https;package=com.android.chrome;end"
+    youtube: {
+      url: "intent://www.youtube.com/#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=https%3A%2F%2Fwww.youtube.com%2F;end",
+      fallback: "https://www.youtube.com/"
+    },
+    whatsapp: {
+      url: "intent://send/#Intent;scheme=whatsapp;package=com.whatsapp;S.browser_fallback_url=https%3A%2F%2Fwww.whatsapp.com%2F;end",
+      fallback: "https://www.whatsapp.com/"
+    },
+    chrome: {
+      url: "intent://www.google.com/#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=https%3A%2F%2Fwww.google.com%2F;end",
+      fallback: "https://www.google.com/"
+    }
   };
 
-  if (!appLinks[appName]) return;
+  const app = appLinks[appName];
+  if (!app) return;
 
   voiceStatus.textContent = "OPENING " + appName.toUpperCase() + "...";
-  window.location.href = appLinks[appName];
+
+  // Use a real link activation so Android can handle the external app intent
+  // from the user's Send-button gesture, including when JARVIS is installed as a PWA.
+  const launchLink = document.createElement("a");
+  launchLink.href = app.url;
+  launchLink.target = "_self";
+  launchLink.rel = "noopener";
+  launchLink.style.display = "none";
+  document.body.appendChild(launchLink);
+  launchLink.click();
+  launchLink.remove();
+
+  // Do not silently redirect to a website: report the requested app launch.
+  // If Android cannot resolve the intent, the user can tell us which app is installed.
 }
 
 // MICROPHONE BUTTON
