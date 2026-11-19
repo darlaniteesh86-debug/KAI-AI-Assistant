@@ -1,10 +1,11 @@
-const CACHE_NAME = "jarvis-v15";
+const CACHE_NAME = "jarvis-v16";
 
 const FILES_TO_CACHE = [
   "./",
   "./index.html",
   "./style.css",
   "./script.js",
+  "./agent.js",
   "./manifest.json"
 ];
 
