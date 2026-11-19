@@ -6,7 +6,7 @@
   function isAgentRequest(text) {
     var value = String(text || "").toLowerCase();
     return /\b(agent mode|use the agent|run the agent|morning briefing|daily briefing|brief me|briefing|research|analyse|analyze)\b/.test(value) ||
-      (/\bplan\b/.test(value) && /\b(time|weather|news|crypto|bitcoin)\b/.test(value));
+      /\b(time|clock|weather|temperature|forecast|news|headlines|crypto|bitcoin|btc)\b|వాతావరణం|సమయం/.test(value);
   }
 
   async function fetchJson(url, signal, timeoutMs) {
