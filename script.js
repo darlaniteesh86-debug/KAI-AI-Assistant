@@ -647,24 +647,33 @@ async function sendMessage() {
   ];
 
   try {
-    const response = await fetch(API_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      signal: controller.signal,
-      body: JSON.stringify({
-        messages: updatedHistory.slice(-MAX_HISTORY).map(item => ({
-          role: item.role,
-          text: item.text
-        }))
-      })
-    });
+    let data;
 
-    const data = await response.json();
+    if (window.KAI_AGENT && window.KAI_AGENT.isAgentRequest(text)) {
+      voiceStatus.textContent = "KAI IS PLANNING YOUR TASK...";
+      data = {
+        reply: await window.KAI_AGENT.run(text, API_URL, controller.signal)
+      };
+    } else {
+      const response = await fetch(API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        signal: controller.signal,
+        body: JSON.stringify({
+          messages: updatedHistory.slice(-MAX_HISTORY).map(item => ({
+            role: item.role,
+            text: item.text
+          }))
+        })
+      });
 
-    if (!response.ok) {
-      throw new Error(data.error || "AI request failed");
+      data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "AI request failed");
+      }
     }
 
     if (!data.reply) {
