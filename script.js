@@ -10,6 +10,102 @@ const API_URL = "https://jarvis-ai-backend.darlaniteesh86.workers.dev";
 const VOICE_KEY = "jarvis_voice_enabled";
 const MAX_HISTORY = 20;
 
+const TOKEN_KEY = "jarvis_session_token";
+const loginGate = document.getElementById("loginGate");
+const loginForm = document.getElementById("loginForm");
+const passwordInput = document.getElementById("passwordInput");
+const loginStatus = document.getElementById("loginStatus");
+const logoutBtn = document.getElementById("logoutBtn");
+let sessionToken = localStorage.getItem(TOKEN_KEY) || "";
+
+function showLogin(message = "") {
+  loginGate.hidden = false;
+  loginStatus.textContent = message;
+  passwordInput.value = "";
+}
+
+function hideLogin() {
+  loginGate.hidden = true;
+  loginStatus.textContent = "";
+}
+
+async function authRequest(action, payload = {}, signal) {
+  const headers = { "Content-Type": "application/json" };
+  if (sessionToken && action !== "login") {
+    headers.Authorization = "Bearer " + sessionToken;
+  }
+  const result = await fetch(API_URL, {
+    method: "POST",
+    headers,
+    signal,
+    body: JSON.stringify({ action, ...payload })
+  });
+  const data = await result.json();
+  if (!result.ok) throw new Error(data.error || "Request failed.");
+  return data;
+}
+
+function displaySavedHistory(savedHistory) {
+  history = Array.isArray(savedHistory) ? savedHistory : [];
+  messages.textContent = "";
+  for (const item of history) {
+    addMessage(item.text || "", item.role === "assistant" ? "JARVIS" : "YOU");
+  }
+}
+
+async function initializeSession() {
+  if (!sessionToken) {
+    showLogin();
+    return;
+  }
+  try {
+    const data = await authRequest("history");
+    displaySavedHistory(data.history);
+    hideLogin();
+  } catch (error) {
+    sessionToken = "";
+    localStorage.removeItem(TOKEN_KEY);
+    showLogin("Your session expired. Please log in again.");
+  }
+}
+
+loginForm.addEventListener("submit", async event => {
+  event.preventDefault();
+  const password = passwordInput.value;
+  if (!password) {
+    loginStatus.textContent = "Enter your JARVIS password.";
+    return;
+  }
+  const loginButton = document.getElementById("loginBtn");
+  loginButton.disabled = true;
+  loginStatus.textContent = "AUTHENTICATING...";
+  try {
+    const data = await authRequest("login", { password });
+    sessionToken = data.token;
+    localStorage.setItem(TOKEN_KEY, sessionToken);
+    const historyData = await authRequest("history");
+    displaySavedHistory(historyData.history);
+    hideLogin();
+  } catch (error) {
+    sessionToken = "";
+    localStorage.removeItem(TOKEN_KEY);
+    loginStatus.textContent = error.message;
+  } finally {
+    passwordInput.value = "";
+    loginButton.disabled = false;
+  }
+});
+
+logoutBtn.addEventListener("click", () => {
+  sessionToken = "";
+  localStorage.removeItem(TOKEN_KEY);
+  history = [];
+  messages.textContent = "";
+  showLogin("You have logged out.");
+});
+
+initializeSession();
+
 let history = [];
 let voiceOn = localStorage.getItem(VOICE_KEY) !== "false";
 let recognition = null;
@@ -641,31 +737,8 @@ async function sendMessage() {
   updateActivityButton();
   voiceStatus.textContent = "JARVIS IS THINKING...";
 
-  const updatedHistory = [
-    ...history,
-    { role: "user", text: text }
-  ];
-
   try {
-    const response = await fetch(API_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      signal: controller.signal,
-      body: JSON.stringify({
-        messages: updatedHistory.slice(-MAX_HISTORY).map(item => ({
-          role: item.role,
-          text: item.text
-        }))
-      })
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || "AI request failed");
-    }
+    const data = await authRequest("chat", { message: text }, controller.signal);
 
     if (!data.reply) {
       throw new Error("No reply received from JARVIS");
@@ -675,11 +748,7 @@ async function sendMessage() {
 
     thinking.textContent = "JARVIS: " + data.reply;
     thinking.removeAttribute("id");
-
-    history = [
-      ...updatedHistory,
-      { role: "model", text: data.reply }
-    ].slice(-MAX_HISTORY);
+    history = Array.isArray(data.history) ? data.history : history;
 
     if (voiceOn) {
       speak(data.reply);
