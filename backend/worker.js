@@ -268,12 +268,12 @@ export default {
         if (!message || message.length > 8000) {
           return response({ error: "Message must be 1–8000 characters." }, 400);
         }
-        const rememberMatch = message.match(/^(?:please )?remember(?: that)?\\s+(.+)$/i);
+        const rememberMatch = message.match(/^(?:please )?remember(?: that)?\s+(.+)$/i);
         if (rememberMatch) {
           const item = rememberMatch[1].trim();
           if (item && item.length <= 1000) {
             const currentMemory = await env.JARVIS_MEMORY.get(MEMORY_KEY) || "";
-            const updatedMemory = currentMemory ? currentMemory + "\\n- " + item : "- " + item;
+            const updatedMemory = currentMemory ? currentMemory + "\n- " + item : "- " + item;
             await env.JARVIS_MEMORY.put(MEMORY_KEY, updatedMemory.slice(-12000));
           }
         }
