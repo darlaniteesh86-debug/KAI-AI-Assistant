@@ -116,6 +116,7 @@
           <button id="voiceBtn" type="button">
             🔊 VOICE ON
           </button>
+          <button id="logoutBtn" type="button" aria-label="Log out">LOG OUT</button>
         </div>
 
       </section>
@@ -127,6 +128,18 @@
     </footer>
 
   </div>
+
+  <section id="loginGate" class="login-gate" aria-label="JARVIS login" hidden>
+    <form id="loginForm" class="login-card">
+      <div class="login-symbol">J</div>
+      <h2>JARVIS ACCESS</h2>
+      <p>AUTHENTICATION REQUIRED</p>
+      <label for="passwordInput">PASSWORD</label>
+      <input id="passwordInput" type="password" placeholder="Enter your password" autocomplete="current-password" required>
+      <button id="loginBtn" type="submit">UNLOCK JARVIS</button>
+      <span id="loginStatus" role="status"></span>
+    </form>
+  </section>
 
   <script src="script.js"></script>
 
