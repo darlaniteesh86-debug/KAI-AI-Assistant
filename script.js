@@ -54,6 +54,7 @@ function displaySavedHistory(savedHistory) {
 }
 
 async function initializeSession() {
+  showLogin(sessionToken ? "CHECKING YOUR SESSION..." : "");
   if (!sessionToken) {
     showLogin();
     return;
