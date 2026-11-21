@@ -41,6 +41,11 @@ async function authRequest(action, payload = {}, signal) {
     body: JSON.stringify({ action, ...payload })
   });
   const data = await result.json();
+  if (result.status === 401 && action !== "login") {
+    sessionToken = "";
+    localStorage.removeItem(TOKEN_KEY);
+    showLogin("Your session expired. Please log in again.");
+  }
   if (!result.ok) throw new Error(data.error || "Request failed.");
   return data;
 }
